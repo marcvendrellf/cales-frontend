@@ -12,7 +12,7 @@ import type { PricePoint } from "@/types"
 
 interface Props {
   data: PricePoint[]
-  /** css var name without var(), e.g. "positive" */
+  /** CSS variable name without `--`: `positive` (up) or `negative` (down). */
   color?: string
   height?: number
   /** draw a horizontal line at this value (e.g. current spot) */

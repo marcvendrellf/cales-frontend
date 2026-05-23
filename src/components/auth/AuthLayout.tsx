@@ -12,7 +12,7 @@ export function AuthLayout({ children, eyebrow, description }: AuthLayoutProps) 
     <main className="grid min-h-svh bg-background text-foreground lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.75fr)]">
       <section className="relative hidden overflow-hidden border-r border-border bg-sidebar lg:block">
         <img
-          src="/candles.jpg"
+          src="/pexels-matreding-11666903.jpg"
           alt=""
           className="absolute inset-0 h-full w-full object-cover opacity-20"
         />

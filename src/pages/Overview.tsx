@@ -19,7 +19,10 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart"
-import { Skeleton } from "@/components/ui/skeleton"
+import {
+  NewsListSkeleton,
+  OverviewChartSkeleton,
+} from "@/components/common/PageSkeletons"
 import { impactColor, relativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Commodity, MarketSignal } from "@/types"
@@ -129,7 +132,7 @@ export function Overview() {
       <Card className="rounded-lg border-border/70 bg-card/40 py-5 shadow-none">
         <CardContent className="px-3 sm:px-5">
           {isLoading ? (
-            <Skeleton className="h-[340px] w-full" />
+            <OverviewChartSkeleton />
           ) : (
             <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
               <div className="min-w-0 flex-1">
@@ -235,11 +238,7 @@ export function Overview() {
           </Link>
         </div>
         {signalsLoading ? (
-          <div className="space-y-3 p-5">
-            {Array.from({ length: 3 }).map((_, index) => (
-              <Skeleton key={index} className="h-16 w-full" />
-            ))}
-          </div>
+          <NewsListSkeleton count={4} />
         ) : (
           signals?.slice(0, 4).map((signal) => <NewsItem key={signal.id} signal={signal} />)
         )}

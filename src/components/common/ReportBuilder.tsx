@@ -1,26 +1,39 @@
 import { useState } from "react"
-import { Check, FileText, Loader2, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
+import { CalendarDays, Check, Loader2, Newspaper, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { toast } from "sonner"
 import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { Slider } from "@/components/ui/slider"
 import { ActionBadge } from "@/components/common/ActionBadge"
-import { ScoreGauge } from "@/components/common/ScoreGauge"
-import { WhatIfPanel } from "@/components/common/WhatIfPanel"
+import { ReportGeneratingSkeleton } from "@/components/common/PageSkeletons"
+import { ReportPreview } from "@/components/common/ReportPreview"
 import { fmtDate } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Commodity } from "@/types"
 
 type SectionKey = "price" | "drivers" | "evidence" | "recommendation"
+type ContextKey = "currentDate" | "spotPrice" | "warehouse" | "recentNews" | "sourceReliability"
 
 type SectionDef = { key: SectionKey; label: string; hint: string; available: boolean }
+type ContextFactor = { key: ContextKey; label: string; hint: string; available: boolean }
 
 const HORIZONS = ["1M", "3M", "6M", "12M"] as const
 type Horizon = (typeof HORIZONS)[number]
 
+const CONTEXT_LABELS: Record<ContextKey, string> = {
+  currentDate: "Current date",
+  spotPrice: "Current spot price",
+  warehouse: "Warehouse position",
+  recentNews: "Recent news",
+  sourceReliability: "Source reliability",
+}
+
 type GeneratedReport = {
   factors: Commodity["drivers"]
   sections: Record<SectionKey, boolean>
+  contextFactors: Record<ContextKey, boolean>
+  newsImpacts: Record<string, number>
   horizon: Horizon
   at: string
 }
@@ -63,14 +76,31 @@ function ToggleRow({
 }
 
 export function ReportBuilder({ c }: { c: Commodity }) {
+  const contextFactors: ContextFactor[] = [
+    { key: "currentDate", label: "Current date", hint: "Anchor the report to today's market window", available: true },
+    { key: "spotPrice", label: "Current spot price", hint: `${c.spot} ${c.unit} and short-term movement`, available: true },
+    { key: "warehouse", label: "Warehouse position", hint: c.warehouseFillPct != null ? `${c.warehouseFillPct}% current fill` : "Not available for this element", available: c.warehouseFillPct != null },
+    { key: "recentNews", label: "Recent news", hint: `${c.evidence.length} available signals and source notes`, available: c.evidence.length > 0 },
+    { key: "sourceReliability", label: "Source reliability", hint: "Weight high-confidence sources more strongly", available: c.evidence.length > 0 },
+  ]
   const sectionDefs: SectionDef[] = [
-    { key: "price", label: "Price history & trend", hint: "6-month series, spot and momentum", available: true },
-    { key: "drivers", label: "Driver breakdown", hint: "Weighted upward / downward forces", available: true },
-    { key: "evidence", label: "Evidence & sources", hint: `${c.evidence.length} cited sources`, available: c.evidence.length > 0 },
-    { key: "recommendation", label: "Recommendation & confidence", hint: "Action, score and rationale", available: true },
+    { key: "price", label: "Market context", hint: "Current price, date, trend and recent movement", available: true },
+    { key: "drivers", label: "Factor analysis", hint: "Selected supply, demand, weather or cost drivers", available: true },
+    { key: "evidence", label: "News and source notes", hint: `${c.evidence.length} items with impact weighting`, available: c.evidence.length > 0 },
+    { key: "recommendation", label: "Decision and confidence", hint: "Procurement action, confidence and rationale", available: true },
   ]
 
   const [factors, setFactors] = useState<Set<string>>(() => new Set(c.drivers.map((d) => d.id)))
+  const [includedContext, setIncludedContext] = useState<Record<ContextKey, boolean>>(() => ({
+    currentDate: true,
+    spotPrice: true,
+    warehouse: c.warehouseFillPct != null,
+    recentNews: true,
+    sourceReliability: true,
+  }))
+  const [newsImpacts, setNewsImpacts] = useState<Record<string, number>>(() =>
+    Object.fromEntries(c.evidence.map((e) => [e.id, 50])),
+  )
   const [sections, setSections] = useState<Record<SectionKey, boolean>>(() => ({
     price: true,
     drivers: true,
@@ -91,7 +121,12 @@ export function ReportBuilder({ c }: { c: Commodity }) {
   const toggleSection = (key: SectionKey) =>
     setSections((prev) => ({ ...prev, [key]: !prev[key] }))
 
+  const toggleContext = (key: ContextKey) =>
+    setIncludedContext((prev) => ({ ...prev, [key]: !prev[key] }))
+
   const selectedFactorCount = factors.size
+  const selectedContextCount = Object.values(includedContext).filter(Boolean).length
+  const reportSectionCount = Object.values(sections).filter(Boolean).length
   const canGenerate = selectedFactorCount > 0 && status !== "generating"
 
   function generate() {
@@ -102,6 +137,8 @@ export function ReportBuilder({ c }: { c: Commodity }) {
       setReport({
         factors: c.drivers.filter((d) => factors.has(d.id)),
         sections: { ...sections },
+        contextFactors: { ...includedContext },
+        newsImpacts: { ...newsImpacts },
         horizon,
         at: new Date().toISOString(),
       })
@@ -110,54 +147,51 @@ export function ReportBuilder({ c }: { c: Commodity }) {
     }, 1400)
   }
 
-  const rec = c.recommendation
-
   return (
     <div className="space-y-6">
-      {/* Risk / opportunity + what-if scenario */}
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="p-5">
-          <h2 className="text-sm font-medium">Risk / opportunity</h2>
-          <div className="mt-3 flex flex-col items-center">
-            <ScoreGauge score={rec.score} />
-            <p className="mt-2 font-mono text-xs text-muted-foreground">{rec.horizon}</p>
+      <section className="space-y-3">
+        <div className="flex items-start gap-3">
+          <CalendarDays className="mt-1 size-5 text-muted-foreground" />
+          <div className="min-w-0">
+            <h2 className="text-xl font-medium text-foreground">
+              Which factors do you want to include?
+            </h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Select the report context before choosing market drivers and news impact.
+            </p>
           </div>
-          <Separator className="my-4" />
-          <p className="text-sm leading-relaxed text-foreground/90">{rec.summary}</p>
-          <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-            <span>Confidence</span>
-            <div className="flex items-center gap-2">
-              <div className="h-1.5 w-20 overflow-hidden rounded-full bg-secondary">
-                <div
-                  className="h-full rounded-full bg-foreground/70"
-                  style={{ width: `${rec.confidence * 100}%` }}
-                />
-              </div>
-              <span className="font-mono">{Math.round(rec.confidence * 100)}%</span>
-            </div>
+        </div>
+        <Card className="p-5">
+          <div className="grid gap-2 sm:grid-cols-2">
+            {contextFactors.map((factor) => (
+              <ToggleRow
+                key={factor.key}
+                checked={includedContext[factor.key] && factor.available}
+                onChange={() => toggleContext(factor.key)}
+                disabled={!factor.available}
+              >
+                <span className="block text-sm">{factor.label}</span>
+                <span className="mt-0.5 block text-xs text-muted-foreground">{factor.hint}</span>
+              </ToggleRow>
+            ))}
           </div>
         </Card>
+      </section>
 
-        <Card className="p-5 lg:col-span-2">
-          <WhatIfPanel c={c} />
-        </Card>
-      </div>
-
-      {/* Builder */}
-      <div className="grid gap-6 lg:grid-cols-3">
-      {/* Inputs */}
-      <div className="space-y-6 lg:col-span-2">
-        <Card className="p-5">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium">Factors to include</h2>
-            <span className="font-mono text-[11px] text-muted-foreground">
-              {selectedFactorCount}/{c.drivers.length} selected
-            </span>
+      <section className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-medium text-foreground">Market drivers</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Choose the supply, demand, weather and cost drivers the report should weigh.
+            </p>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Choose which price drivers the report should weigh.
-          </p>
-          <div className="mt-4 space-y-2">
+          <span className="mt-1 shrink-0 font-mono text-xs text-muted-foreground">
+            {selectedFactorCount}/{c.drivers.length} selected
+          </span>
+        </div>
+        <Card className="p-5">
+          <div className="space-y-2">
             {c.drivers.map((d) => {
               const Icon = d.direction === "up" ? TrendingUp : TrendingDown
               const text = d.direction === "up" ? "text-positive" : "text-negative"
@@ -180,13 +214,62 @@ export function ReportBuilder({ c }: { c: Commodity }) {
             })}
           </div>
         </Card>
+      </section>
 
+      <section className="space-y-3">
+        <div className="flex items-start gap-3">
+          <Newspaper className="mt-1 size-5 text-muted-foreground" />
+          <div className="min-w-0">
+            <h2 className="text-xl font-medium text-foreground">News impact</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Tune how much each source should influence the final report.
+            </p>
+          </div>
+        </div>
         <Card className="p-5">
-          <h2 className="text-sm font-medium">Sections</h2>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Pick the parts to render in the generated report.
-          </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <div className="space-y-5">
+            {c.evidence.map((item) => {
+              const value = newsImpacts[item.id] ?? 50
+              return (
+                <div key={item.id}>
+                  <div className="flex items-start justify-between gap-3 text-sm">
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{item.title}</p>
+                      <p className="mt-0.5 text-xs text-muted-foreground">{item.source} · {fmtDate(item.date)}</p>
+                    </div>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">{value}%</span>
+                  </div>
+                  <Slider
+                    className="mt-2"
+                    value={[value]}
+                    min={0}
+                    max={100}
+                    step={5}
+                    onValueChange={([next]) =>
+                      setNewsImpacts((prev) => ({ ...prev, [item.id]: next }))
+                    }
+                  />
+                </div>
+              )
+            })}
+          </div>
+        </Card>
+      </section>
+
+      <section className="space-y-3">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-medium text-foreground">Report sections</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
+              Decide what the generated report should contain.
+            </p>
+          </div>
+          <span className="mt-1 shrink-0 font-mono text-xs text-muted-foreground">
+            {reportSectionCount}/{sectionDefs.length} selected
+          </span>
+        </div>
+        <Card className="p-5">
+          <div className="grid gap-2 sm:grid-cols-2">
             {sectionDefs.map((s) => (
               <ToggleRow
                 key={s.key}
@@ -194,7 +277,7 @@ export function ReportBuilder({ c }: { c: Commodity }) {
                 onChange={() => toggleSection(s.key)}
                 disabled={!s.available}
               >
-                <span className="block text-sm">{s.label}</span>
+                <span className="block text-sm font-medium">{s.label}</span>
                 <span className="mt-0.5 block text-xs text-muted-foreground">
                   {s.available ? s.hint : "No data for this element"}
                 </span>
@@ -202,13 +285,12 @@ export function ReportBuilder({ c }: { c: Commodity }) {
             ))}
           </div>
         </Card>
-      </div>
+      </section>
 
-      {/* Generate */}
-      <div className="space-y-6">
+      <section className="space-y-3">
+        <h2 className="text-xl font-medium text-foreground">Forecast horizon</h2>
         <Card className="p-5">
-          <h2 className="text-sm font-medium">Forecast horizon</h2>
-          <div className="mt-3 grid grid-cols-4 gap-1.5">
+          <div className="grid grid-cols-4 gap-1.5 sm:max-w-sm">
             {HORIZONS.map((h) => (
               <button
                 key={h}
@@ -228,22 +310,26 @@ export function ReportBuilder({ c }: { c: Commodity }) {
 
           <Separator className="my-4" />
 
-          <dl className="space-y-2 text-xs">
-            <div className="flex items-center justify-between">
+          <dl className="grid gap-3 text-xs sm:grid-cols-4">
+            <div>
+              <dt className="text-muted-foreground">Context</dt>
+              <dd className="mt-1 font-mono">{selectedContextCount}</dd>
+            </div>
+            <div>
               <dt className="text-muted-foreground">Factors</dt>
-              <dd className="font-mono">{selectedFactorCount}</dd>
+              <dd className="mt-1 font-mono">{selectedFactorCount}</dd>
             </div>
-            <div className="flex items-center justify-between">
+            <div>
               <dt className="text-muted-foreground">Sections</dt>
-              <dd className="font-mono">{Object.values(sections).filter(Boolean).length}</dd>
+              <dd className="mt-1 font-mono">{reportSectionCount}</dd>
             </div>
-            <div className="flex items-center justify-between">
+            <div>
               <dt className="text-muted-foreground">Horizon</dt>
-              <dd className="font-mono">{horizon}</dd>
+              <dd className="mt-1 font-mono">{horizon}</dd>
             </div>
           </dl>
 
-          <Button onClick={generate} disabled={!canGenerate} className="mt-4 w-full">
+          <Button onClick={generate} disabled={!canGenerate} className="mt-5 w-full sm:w-auto">
             {status === "generating" ? (
               <>
                 <Loader2 className="animate-spin" /> Generating…
@@ -255,31 +341,21 @@ export function ReportBuilder({ c }: { c: Commodity }) {
             )}
           </Button>
           {selectedFactorCount === 0 && (
-            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+            <p className="mt-2 text-[11px] text-muted-foreground">
               Select at least one factor.
             </p>
           )}
         </Card>
-      </div>
+      </section>
 
-      {/* Result */}
-      <div className="lg:col-span-3">
-        {status === "idle" && (
-          <Card className="flex flex-col items-center justify-center gap-2 border-dashed p-10 text-center">
-            <FileText className="size-6 text-muted-foreground" />
-            <p className="text-sm text-muted-foreground">
-              Configure the inputs above, then generate a report.
-            </p>
-          </Card>
+      <div>
+        {status === "generating" && <ReportGeneratingSkeleton />}
+        {status === "ready" && report && (
+          <div className="space-y-6">
+            <GeneratedReportView c={c} report={report} />
+            <ReportPreview c={c} />
+          </div>
         )}
-        {status === "generating" && (
-          <Card className="flex flex-col items-center justify-center gap-2 p-10 text-center">
-            <Loader2 className="size-6 animate-spin text-cala" />
-            <p className="text-sm text-muted-foreground">Compiling {c.name} report…</p>
-          </Card>
-        )}
-        {status === "ready" && report && <GeneratedReportView c={c} report={report} />}
-      </div>
       </div>
     </div>
   )
@@ -287,6 +363,10 @@ export function ReportBuilder({ c }: { c: Commodity }) {
 
 function GeneratedReportView({ c, report }: { c: Commodity; report: GeneratedReport }) {
   const rec = c.recommendation
+  const includedContext = Object.entries(report.contextFactors)
+    .filter(([, enabled]) => enabled)
+    .map(([key]) => CONTEXT_LABELS[key as ContextKey])
+
   return (
     <Card className="p-6">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -349,21 +429,35 @@ function GeneratedReportView({ c, report }: { c: Commodity; report: GeneratedRep
         </section>
       )}
 
-{report.sections.evidence && c.evidence.length > 0 && (
+      {report.sections.evidence && c.evidence.length > 0 && (
         <section className="mt-5">
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Sources
+            News impact and sources
           </h3>
-          <ul className="mt-2 space-y-1">
+          <ul className="mt-2 space-y-2">
             {c.evidence.map((e) => (
-              <li key={e.id} className="text-xs text-muted-foreground">
-                <span className="text-foreground/80">{e.source}</span> — {e.title}{" "}
-                <span className="font-mono">({fmtDate(e.date)})</span>
+              <li key={e.id} className="flex items-start justify-between gap-3 text-xs text-muted-foreground">
+                <span>
+                  <span className="text-foreground/80">{e.source}</span> — {e.title}{" "}
+                  <span className="font-mono">({fmtDate(e.date)})</span>
+                </span>
+                <span className="shrink-0 font-mono text-foreground/80">
+                  {report.newsImpacts[e.id] ?? 50}% impact
+                </span>
               </li>
             ))}
           </ul>
         </section>
       )}
+
+      <section className="mt-5">
+        <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          Included context
+        </h3>
+        <p className="mt-2 text-sm leading-relaxed text-foreground/90">
+          {includedContext.join(", ")}.
+        </p>
+      </section>
 
       {report.sections.recommendation && (
         <section className="mt-5">

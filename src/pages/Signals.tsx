@@ -2,7 +2,7 @@ import { useMemo, useState } from "react"
 import { Link } from "react-router-dom"
 import { useSignals } from "@/api/hooks"
 import { Card } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { SignalRowSkeleton } from "@/components/common/PageSkeletons"
 import { Illustration } from "@/components/common/Illustration"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
 import { cn } from "@/lib/utils"
@@ -136,9 +136,9 @@ export function Signals() {
 
       <Card className="px-5 py-2">
         {isLoading ? (
-          <div className="space-y-3 py-3">
+          <div className="py-1">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-12 w-full" />
+              <SignalRowSkeleton key={i} />
             ))}
           </div>
         ) : filtered.length ? (

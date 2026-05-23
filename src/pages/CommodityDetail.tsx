@@ -1,13 +1,13 @@
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { ExternalLink, FileText, Info, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
+import { ExternalLink, FileText, Info, ListChecks, TrendingDown, TrendingUp } from "lucide-react"
 import { useCommodity } from "@/api/hooks"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
 import { Card } from "@/components/ui/card"
-import { Skeleton } from "@/components/ui/skeleton"
+import { CommodityDetailSkeleton } from "@/components/common/PageSkeletons"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ReportBuilder } from "@/components/common/ReportBuilder"
-import { ReportPreview } from "@/components/common/ReportPreview"
+import { ReportList } from "@/components/common/ReportList"
 import { PriceChart } from "@/components/common/PriceChart"
 import { TrendArrow } from "@/components/common/TrendArrow"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
@@ -77,18 +77,6 @@ function EvidenceRow({ e }: { e: Evidence }) {
         </div>
         <p className="mt-1 text-sm text-foreground/90">{e.title}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{e.excerpt}</p>
-      </div>
-    </div>
-  )
-}
-
-function DetailSkeleton() {
-  return (
-    <div className="space-y-6">
-      <Skeleton className="h-8 w-48" />
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Skeleton className="h-96 lg:col-span-2" />
-        <Skeleton className="h-96" />
       </div>
     </div>
   )
@@ -178,13 +166,13 @@ function Loaded({ c }: { c: Commodity }) {
       ? [
           { label: "Reports", onClick: () => navigate("/reports") },
           { label: c.name, onClick: () => navigate(`/c/${c.id}`) },
-          { label: "Preview" },
+          { label: "Report List" },
         ]
       : isReport
         ? [
             { label: "Reports", onClick: () => navigate("/reports") },
             { label: c.name, onClick: () => navigate(`/c/${c.id}`) },
-            { label: "Report" },
+            { label: "Create Report" },
           ]
         : [
             { label: "Reports", onClick: () => navigate("/reports") },
@@ -227,10 +215,10 @@ function Loaded({ c }: { c: Commodity }) {
             <Info /> General information
           </TabsTrigger>
           <TabsTrigger value="report">
-            <FileText /> Report
+            <FileText /> Create Report
           </TabsTrigger>
           <TabsTrigger value="preview">
-            <Sparkles /> Report Preview
+            <ListChecks /> Report List
           </TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="mt-6">
@@ -240,7 +228,7 @@ function Loaded({ c }: { c: Commodity }) {
           <ReportBuilder c={c} />
         </TabsContent>
         <TabsContent value="preview" className="mt-6">
-          <ReportPreview c={c} />
+          <ReportList c={c} />
         </TabsContent>
       </Tabs>
     </div>
@@ -251,7 +239,7 @@ export function CommodityDetail() {
   const { id } = useParams<{ id: CommodityId }>()
   const { data, isLoading, isError } = useCommodity(id as CommodityId)
 
-  if (isLoading) return <DetailSkeleton />
+  if (isLoading) return <CommodityDetailSkeleton />
   if (isError || !data)
     return (
       <div className="py-20 text-center">

@@ -1,7 +1,10 @@
 import { useCommodities } from "@/api/hooks"
 import { CommodityCard } from "@/components/common/CommodityCard"
 import { RecommendationTimeline } from "@/components/common/RecommendationTimeline"
-import { Skeleton } from "@/components/ui/skeleton"
+import {
+  CommodityCardSkeleton,
+  RecommendationTimelineSkeleton,
+} from "@/components/common/PageSkeletons"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
 
 export function CommandCenter() {
@@ -17,15 +20,15 @@ export function CommandCenter() {
       <section>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {isLoading
-            ? Array.from({ length: 4 }).map((_, i) => (
-                <Skeleton key={i} className="h-56 w-full rounded-lg" />
-              ))
+            ? Array.from({ length: 4 }).map((_, i) => <CommodityCardSkeleton key={i} />)
             : data?.map((c) => <CommodityCard key={c.id} c={c} />)}
         </div>
       </section>
 
-      {!isLoading && data && (
-        <RecommendationTimeline commodities={data} />
+      {isLoading ? (
+        <RecommendationTimelineSkeleton />
+      ) : (
+        data && <RecommendationTimeline commodities={data} />
       )}
     </div>
   )

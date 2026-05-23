@@ -11,6 +11,11 @@ import { Card } from "@/components/ui/card"
 import { ScoreGauge } from "@/components/common/ScoreGauge"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
 import { TrendArrow } from "@/components/common/TrendArrow"
+import {
+  dailyChangeFill,
+  monthlyReturnStyle,
+  priceDirectionHex,
+} from "@/lib/chart-colors"
 import { fmtDate, fmtPct, actionColor, reliabilityLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Action, Commodity, PricePoint } from "@/types"
@@ -47,16 +52,6 @@ function buildCalendar(series: PricePoint[]) {
   const weeks: (DayCell | null)[][] = []
   for (let i = 0; i < padded.length; i += 7) weeks.push(padded.slice(i, i + 7))
   return weeks
-}
-
-function pctFill(pct: number): string {
-  if (pct > 2.5)  return "#15803d"
-  if (pct > 1)    return "#22c55e"
-  if (pct > 0.2)  return "#4ade80"
-  if (pct < -2.5) return "#b91c1c"
-  if (pct < -1)   return "#ef4444"
-  if (pct < -0.2) return "#f87171"
-  return "#2c2824"
 }
 
 function CalendarHeatmap({ series }: { series: PricePoint[] }) {
@@ -97,7 +92,12 @@ function CalendarHeatmap({ series }: { series: PricePoint[] }) {
         {hovered && (
           <div className="text-right">
             <p className="font-mono text-[11px] text-muted-foreground">{fmtDate(hovered.date)}</p>
-            <p className={cn("font-mono text-sm font-medium", hovered.pct >= 0 ? "text-positive" : "text-negative")}>
+            <p
+              className={cn(
+                "font-mono text-sm font-medium",
+                hovered.pct >= 0 ? "text-positive" : "text-negative",
+              )}
+            >
               {hovered.pct > 0 ? "+" : ""}{hovered.pct.toFixed(2)}%
             </p>
           </div>
@@ -121,7 +121,7 @@ function CalendarHeatmap({ series }: { series: PricePoint[] }) {
                 key={`${wi}-${di}`}
                 x={DOW_W + wi * STEP} y={HEAD_H + di * STEP}
                 width={CELL} height={CELL} rx={2.5}
-                fill={cell ? pctFill(cell.pct) : "#211e1b"}
+                fill={cell ? dailyChangeFill(cell.pct) : "#211e1b"}
                 opacity={cell ? 1 : 0.35}
                 onMouseEnter={() => cell && setHovered(cell)}
                 onMouseLeave={() => setHovered(null)}
@@ -134,7 +134,7 @@ function CalendarHeatmap({ series }: { series: PricePoint[] }) {
 
       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
         <span>Down</span>
-        {["#b91c1c","#f87171","#2c2824","#4ade80","#15803d"].map((fill) => (
+        {["#b91c1c", "#f87171", "#4ade80", "#15803d"].map((fill) => (
           <div key={fill} className="size-3 rounded-sm" style={{ background: fill }} />
         ))}
         <span>Up</span>
@@ -145,7 +145,7 @@ function CalendarHeatmap({ series }: { series: PricePoint[] }) {
 
 /* ─── Monthly returns strip ─────────────────────────────────────── */
 
-function MonthlyStrip({ series, accent }: { series: PricePoint[]; accent: string }) {
+function MonthlyStrip({ series }: { series: PricePoint[] }) {
   const months = useMemo(() => {
     const byMonth: Record<string, number[]> = {}
     series.forEach(p => { (byMonth[p.date.slice(0, 7)] ??= []).push(p.value) })
@@ -163,15 +163,14 @@ function MonthlyStrip({ series, accent }: { series: PricePoint[]; accent: string
           <div key={label} className="flex-1 space-y-1.5 text-center">
             <div
               className="flex items-center justify-center rounded-md"
-              style={{
-                height: 52,
-                background: pct >= 0
-                  ? `rgba(34,197,94,${Math.min(0.85, Math.abs(pct) / 5)})`
-                  : `rgba(239,68,68,${Math.min(0.85, Math.abs(pct) / 5)})`,
-                border: `1px solid ${pct >= 0 ? "rgba(34,197,94,0.25)" : "rgba(239,68,68,0.25)"}`,
-              }}
+              style={{ height: 52, ...monthlyReturnStyle(pct) }}
             >
-              <span className={cn("font-mono text-xs font-semibold", pct >= 0 ? "text-positive" : "text-negative")}>
+              <span
+                className={cn(
+                  "font-mono text-xs font-semibold",
+                  pct >= 0 ? "text-positive" : "text-negative",
+                )}
+              >
                 {fmtPct(pct)}
               </span>
             </div>
@@ -215,7 +214,7 @@ function DriverRadar({ c, accent }: { c: Commodity; accent: string }) {
             />
             <RechartsTooltip
               contentStyle={{ background: "#211e1b", border: "1px solid #4a443d", borderRadius: 6, fontSize: 12 }}
-              formatter={(v: number) => [`${v}%`, "Weight"]}
+              formatter={(value) => [`${Number(value ?? 0)}%`, "Weight"]}
             />
           </RadarChart>
         </ResponsiveContainer>
@@ -227,7 +226,9 @@ function DriverRadar({ c, accent }: { c: Commodity; accent: string }) {
 /* ─── Evidence panel ────────────────────────────────────────────── */
 
 const dotColor: Record<string, string> = {
-  high: "#22c55e", medium: "#f59e0b", low: "#f87171",
+  high: "#22c55e",
+  medium: "#f59e0b",
+  low: "#f87171",
 }
 
 function EvidencePanel({ c }: { c: Commodity }) {
@@ -272,6 +273,7 @@ function EvidencePanel({ c }: { c: Commodity }) {
 
 export function ReportPreview({ c }: { c: Commodity }) {
   const rec = c.recommendation
+  const chartAccent = priceDirectionHex(c.trend, c.change30d)
   const accent = ACCENT[rec.action]
   const glow = GLOW[rec.action]
 
@@ -356,9 +358,9 @@ export function ReportPreview({ c }: { c: Commodity }) {
       {/* ── Monthly strip + radar / evidence ── */}
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <Card className="space-y-6 p-5">
-          <MonthlyStrip series={c.series} accent={accent} />
+          <MonthlyStrip series={c.series} />
           <div className="border-t border-border/40 pt-5">
-            <DriverRadar c={c} accent={accent} />
+            <DriverRadar c={c} accent={chartAccent} />
           </div>
         </Card>
 

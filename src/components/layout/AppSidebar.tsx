@@ -25,17 +25,6 @@ import { Logo } from "@/components/layout/Logo"
 import { SidebarUser } from "@/components/layout/SidebarUser"
 import { COMMODITIES } from "@/data/mock"
 
-const SIMPLE_GROUPS = [
-  {
-    label: "Workspace",
-    items: [{ to: "/", label: "Overview", icon: LayoutDashboard, end: true }],
-  },
-  {
-    label: "Intelligence",
-    items: [{ to: "/signals", label: "Signals", icon: RadioTower, end: false }],
-  },
-]
-
 export function AppSidebar() {
   const { pathname } = useLocation()
   const reportsActive = pathname.startsWith("/reports") || pathname.startsWith("/c/")

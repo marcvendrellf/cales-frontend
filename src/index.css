@@ -46,8 +46,8 @@
   --positive: #74c79a;
   --negative: #d9737a;
 
-  /* chart series */
-  --chart-1: #74c79a;
+  /* chart series — per commodity, not price-direction semantics */
+  --chart-1: #8eb0d4;
   --chart-2: #e0b341;
   --chart-3: #6f9bd1;
   --chart-4: #d99a4e;
@@ -97,7 +97,7 @@
   --monitor-foreground: #1c1916;
   --positive: #74c79a;
   --negative: #d9737a;
-  --chart-1: #74c79a;
+  --chart-1: #8eb0d4;
   --chart-2: #e0b341;
   --chart-3: #6f9bd1;
   --chart-4: #d99a4e;
