@@ -56,10 +56,6 @@ export function CommandPalette({ open, onOpenChange }: Props) {
             <Activity className="size-4 text-muted-foreground" />
             Command Center
           </CommandItem>
-          <CommandItem value="signals feed market" onSelect={() => go("/signals")}>
-            <Activity className="size-4 text-muted-foreground" />
-            Signals Feed
-          </CommandItem>
         </CommandGroup>
       </CommandList>
     </CommandDialog>

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
-import { ArrowUp, Sparkles } from "lucide-react"
+import { ArrowUp, Loader2, Sparkles } from "lucide-react"
+import { toast } from "sonner"
+import { api } from "@/api/client"
+import { askActiveScreen } from "@/lib/screen-agent"
 
 const SUGGESTIONS = [
   "Should we buy aluminium now?",
@@ -13,6 +16,7 @@ const SUGGESTIONS = [
 export function AskBar() {
   const [value, setValue] = useState("")
   const [open, setOpen] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -39,16 +43,20 @@ export function AskBar() {
   }
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-background from-50% via-background/90 via-80% to-background/0 px-4 pb-5 pt-12">
-      <div className="pointer-events-auto mx-auto w-full max-w-2xl">
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 px-4 pb-5 pt-12">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background via-background/80 to-transparent"
+      />
+      <div className="pointer-events-auto relative mx-auto w-full max-w-2xl">
         <AnimatePresence>
           {open && filtered.length > 0 ? (
             <motion.ul
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.18, ease: "easeOut" }}
-              className="mb-2 overflow-hidden rounded-2xl border border-border/70 bg-card/90 p-1.5 shadow-lg shadow-black/30 backdrop-blur-md"
+              initial={{ opacity: 0, y: 12, scale: 0.97, filter: "blur(6px)" }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+              exit={{ opacity: 0, y: 10, scale: 0.97, filter: "blur(6px)" }}
+              transition={{ duration: 0.26, ease: "easeOut" }}
+              className="mb-2 origin-bottom overflow-hidden rounded-2xl border border-border/60 bg-card/90 p-1.5 shadow-[0_28px_80px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.04] backdrop-blur-xl"
             >
               {filtered.map((suggestion) => (
                 <li key={suggestion}>
@@ -71,9 +79,29 @@ export function AskBar() {
 
         <form
           className="group flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 shadow-lg shadow-black/20 backdrop-blur transition-colors focus-within:border-foreground/25 hover:border-foreground/25 hover:bg-card"
-          onSubmit={(event) => {
+          onSubmit={async (event) => {
             event.preventDefault()
+            const question = value.trim()
+            if (!question || submitting) return
             setOpen(false)
+            setSubmitting(true)
+            try {
+              const screenResponse = askActiveScreen(question)
+              if (screenResponse) {
+                const result = await screenResponse
+                if (result.message) toast("Cales", { description: result.message })
+                setValue("")
+                return
+              }
+              const response = await api.chat(question)
+              toast("Cales", { description: response.answer })
+              setValue("")
+            } catch (error) {
+              const message = error instanceof Error ? error.message : "Unknown error"
+              toast.error("Cales could not answer", { description: message })
+            } finally {
+              setSubmitting(false)
+            }
           }}
         >
           <Sparkles className="size-4 shrink-0 text-muted-foreground" />
@@ -114,9 +142,10 @@ export function AskBar() {
           <button
             type="submit"
             aria-label="Send question"
+            disabled={submitting}
             className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground opacity-90 transition-opacity group-hover:opacity-100"
           >
-            <ArrowUp className="size-4" />
+            {submitting ? <Loader2 className="size-4 animate-spin" /> : <ArrowUp className="size-4" />}
           </button>
         </form>
       </div>

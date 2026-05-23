@@ -7,7 +7,12 @@ import type { Commodity, CommodityId, MarketSignal } from "@/types"
 // When unset, the app serves the in-repo mock dataset.
 const API_URL = import.meta.env.VITE_API_URL as string | undefined
 const AGENT_API_URL = (import.meta.env.VITE_AGENT_API_URL as string | undefined) ?? API_URL
-const UI_AGENT_API_URL = import.meta.env.VITE_UI_AGENT_API_URL as string | undefined
+const RAW_UI_AGENT_API_URL = import.meta.env.VITE_UI_AGENT_API_URL as string | undefined
+const UI_AGENT_API_URL = RAW_UI_AGENT_API_URL
+  ? endpointUrl(RAW_UI_AGENT_API_URL, "/agent/ui")
+  : AGENT_API_URL
+    ? endpointUrl(AGENT_API_URL, "/agent/ui")
+    : undefined
 const USE_MOCK = !API_URL
 const USE_AGENT_MOCK = !AGENT_API_URL
 const USE_UI_AGENT_MOCK = !UI_AGENT_API_URL
@@ -17,14 +22,34 @@ function delay<T>(value: T, ms = 220): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
 }
 
+function joinUrl(baseUrl: string, path: string) {
+  return `${baseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`
+}
+
+function endpointUrl(baseUrl: string, endpointPath: string) {
+  return baseUrl.endsWith(endpointPath) ? baseUrl : joinUrl(baseUrl, endpointPath)
+}
+
+export function resolveBackendUrl(url: string) {
+  if (/^https?:\/\//i.test(url)) return url
+  const base = AGENT_API_URL ?? API_URL
+  return base ? joinUrl(base, url) : url
+}
+
 async function get<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`)
+  const res = await fetch(joinUrl(API_URL ?? "", path))
+  if (!res.ok) throw new Error(`API ${res.status} for ${path}`)
+  return res.json() as Promise<T>
+}
+
+async function getFromBase<T>(baseUrl: string, path: string): Promise<T> {
+  const res = await fetch(joinUrl(baseUrl, path))
   if (!res.ok) throw new Error(`API ${res.status} for ${path}`)
   return res.json() as Promise<T>
 }
 
 async function post<T>(baseUrl: string, path: string, body: unknown): Promise<T> {
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await fetch(joinUrl(baseUrl, path), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -299,6 +324,21 @@ export const api = {
       }, 900)
     }
     return post<AgentAnalyzeResponse>(AGENT_API_URL, "/agent/analyze", payload)
+  },
+
+  getReport(reportId: string): Promise<AgentAnalyzeResponse> {
+    if (USE_AGENT_MOCK) return Promise.reject(new Error("No agent report API configured"))
+    return getFromBase<AgentAnalyzeResponse>(AGENT_API_URL, `/agent/reports/${reportId}`)
+  },
+
+  chat(message: string): Promise<{ answer: string; tool_calls: Array<Record<string, unknown>> }> {
+    if (USE_AGENT_MOCK) {
+      return delay({
+        answer: "This demo is using local mock data. Connect VITE_AGENT_API_URL to ask the backend agent.",
+        tool_calls: [],
+      })
+    }
+    return post<{ answer: string; tool_calls: Array<Record<string, unknown>> }>(AGENT_API_URL, "/agent/chat", { message })
   },
 
   runUiAgent(payload: UIScreenPayload): Promise<UIAgentResponse> {

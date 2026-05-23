@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { useQuery } from "@tanstack/react-query"
 import { motion, type Variants } from "motion/react"
 import Lenis from "lenis"
 import { QRCodeSVG } from "qrcode.react"
@@ -11,6 +12,7 @@ import {
   ChevronDown,
   ChevronUp,
   Copy,
+  Download,
   ExternalLink,
   Info,
   QrCode,
@@ -40,11 +42,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useCommodity } from "@/api/hooks"
+import { api, resolveBackendUrl } from "@/api/client"
 import { REPORT_MAP_POINTS } from "@/lib/report-map-points"
 import {
   defaultReportConfig,
   loadReportConfig,
   reportCommodityId,
+  reportConfigFromAgentResponse,
   type AgentPricePath,
   type AgentReportDriver,
   type AgentWebsiteReport,
@@ -59,6 +63,15 @@ type ExplainPayload = {
   title: string
   body: string
   citations: string[]
+  evidenceRefs?: EvidenceReference[]
+}
+
+type EvidenceReference = {
+  id: string
+  source: string
+  title?: string
+  date?: string | null
+  url?: string
 }
 
 const actionArc: Record<Action, string> = {
@@ -84,10 +97,22 @@ function agentDirection(direction?: string): "up" | "down" | "neutral" {
   return "neutral"
 }
 
+function reportPressureColor(direction: "up" | "down" | "neutral") {
+  if (direction === "up") return "var(--negative)"
+  if (direction === "down") return "var(--positive)"
+  return "var(--muted-foreground)"
+}
+
+function reportPressureClass(direction: "up" | "down" | "neutral") {
+  if (direction === "up") return "text-negative"
+  if (direction === "down") return "text-positive"
+  return "text-muted-foreground"
+}
+
 function agentTone(direction?: string) {
   const normalized = agentDirection(direction)
-  if (normalized === "up") return { label: "Bullish", className: "text-positive" }
-  if (normalized === "down") return { label: "Bearish", className: "text-negative" }
+  if (normalized === "up") return { label: "Bullish", className: reportPressureClass("up") }
+  if (normalized === "down") return { label: "Bearish", className: reportPressureClass("down") }
   return { label: "Neutral", className: "text-muted-foreground" }
 }
 
@@ -247,6 +272,84 @@ function agentEvidenceFor(report: AgentWebsiteReport | null, ids: string[]) {
   return report.evidence.filter((item) => wanted.has(item.id))
 }
 
+function looksLikeRawReference(value: string) {
+  return /^(ev|drv|src|mock)_[a-z0-9_]+$/i.test(value)
+}
+
+function cleanSourceLabels(sources: string[]) {
+  return Array.from(
+    new Set(
+      sources
+        .map((source) => source.trim())
+        .filter(Boolean)
+        .filter((source) => !looksLikeRawReference(source)),
+    ),
+  )
+}
+
+function evidenceSourceLabels(c: Commodity, report: AgentWebsiteReport | null, refs: string[]) {
+  const agentEvidence = new Map((report?.evidence ?? []).map((item) => [item.id, item.source]))
+  const commodityEvidence = new Map(c.evidence.map((item) => [item.id, item.source]))
+
+  return cleanSourceLabels(
+    refs.map((ref) => agentEvidence.get(ref) ?? commodityEvidence.get(ref) ?? ref),
+  )
+}
+
+function evidenceReferences(c: Commodity, report: AgentWebsiteReport | null, refs: string[]): EvidenceReference[] {
+  const agentEvidence = new Map((report?.evidence ?? []).map((item) => [item.id, item]))
+  const commodityEvidence = new Map(c.evidence.map((item) => [item.id, item]))
+  const seen = new Set<string>()
+
+  return refs.flatMap((ref) => {
+    const agentItem = agentEvidence.get(ref)
+    const commodityItem = commodityEvidence.get(ref)
+    const item = agentItem ?? commodityItem
+    const key = item?.id ?? ref
+    if (seen.has(key)) return []
+    seen.add(key)
+
+    if (agentItem) {
+      return [{
+        id: agentItem.id,
+        source: agentItem.source,
+        title: agentItem.title,
+        date: agentItem.date,
+        url: agentItem.url,
+      }]
+    }
+    if (commodityItem) {
+      return [{
+        id: commodityItem.id,
+        source: commodityItem.source,
+        title: commodityItem.title,
+        date: commodityItem.date,
+        url: commodityItem.url,
+      }]
+    }
+    if (looksLikeRawReference(ref)) return []
+    return [{ id: ref, source: ref }]
+  })
+}
+
+function allEvidenceReferences(c: Commodity, report: AgentWebsiteReport | null) {
+  const agentRefs = report?.evidence.map((item) => item.id) ?? []
+  const commodityRefs = c.evidence.map((item) => item.id)
+  return evidenceReferences(c, report, [...agentRefs, ...commodityRefs])
+}
+
+function demoEvidenceReferences(
+  c: Commodity,
+  report: AgentWebsiteReport | null,
+  primaryRefs: string[] = [],
+  minimum = 4,
+) {
+  const picked = evidenceReferences(c, report, primaryRefs)
+  const seen = new Set(picked.map((item) => item.id))
+  const extras = allEvidenceReferences(c, report).filter((item) => !seen.has(item.id))
+  return [...picked, ...extras].slice(0, Math.max(minimum, picked.length))
+}
+
 function agentDriverDirection(driver: AgentReportDriver) {
   return agentDirection(driver.direction)
 }
@@ -266,6 +369,23 @@ function splitSummary(summary: string) {
 
 function reportUrl(reportId: string) {
   return `${window.location.origin}/r/${reportId}`
+}
+
+function forceDownloadUrl(url: string) {
+  return `${url}${url.includes("?") ? "&" : "?"}inline=false`
+}
+
+function reportPdfDownloadUrl(config: ReportConfig) {
+  const readyPdfUrl = config.agentResponse?.executive_pdf?.status === "ready"
+    ? config.agentResponse.executive_pdf.url
+    : `/reports/${config.reportId}/executive.pdf`
+  return forceDownloadUrl(resolveBackendUrl(readyPdfUrl))
+}
+
+function referenceHref(ref: EvidenceReference) {
+  if (ref.url) return ref.url
+  const query = [ref.source, ref.title].filter(Boolean).join(" ")
+  return query ? `https://www.google.com/search?q=${encodeURIComponent(query)}` : undefined
 }
 
 /* ── Editorial primitives ─────────────────────────────────────────────── */
@@ -405,19 +525,46 @@ function Figure({
 }
 
 function SourceLine({ sources, className }: { sources: string[]; className?: string }) {
-  const unique = Array.from(new Set(sources.filter(Boolean)))
+  const unique = cleanSourceLabels(sources)
   if (unique.length === 0) return null
   return (
     <p className={cn("font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/70", className)}>
-      Sources · {unique.join("  /  ")}
+      Sources ·{" "}
+      {unique.map((source, index) => (
+        <span key={source}>
+          <span className={cn(source.toLowerCase().includes("cala") && "text-white")}>{source}</span>
+          {index < unique.length - 1 ? "  /  " : ""}
+        </span>
+      ))}
     </p>
   )
 }
 
-function Refs({ ids }: { ids: string[] }) {
-  const unique = Array.from(new Set(ids.filter(Boolean)))
-  if (unique.length === 0) return null
-  return <span className="ml-1 align-super font-mono text-[10px] tracking-tight text-cala/70">{unique.join(",")}</span>
+function SourceDetails({ refs, className }: { refs: EvidenceReference[]; className?: string }) {
+  if (refs.length === 0) return null
+  return (
+    <div className={cn("mt-2 space-y-1.5", className)}>
+      {refs.map((ref) => (
+        <div key={ref.id} className="text-xs leading-5 text-muted-foreground">
+          <span className={cn("font-mono uppercase tracking-[0.14em] text-muted-foreground/70", ref.source.toLowerCase().includes("cala") && "text-white")}>
+            {ref.source}
+          </span>
+          {ref.date ? <span className="font-mono text-muted-foreground/50"> · {fmtOptionalDate(ref.date)}</span> : null}
+          {ref.title ? (
+            <span className="ml-2 text-foreground/85">
+              {referenceHref(ref) ? (
+                <a href={referenceHref(ref)} target="_blank" rel="noopener noreferrer" className="transition hover:text-white">
+                  {ref.title}
+                </a>
+              ) : (
+                ref.title
+              )}
+            </span>
+          ) : null}
+        </div>
+      ))}
+    </div>
+  )
 }
 
 function SectionNavigation({
@@ -521,6 +668,34 @@ function ExplainPanel({
             </button>
           </div>
           <p className="mt-6 text-sm leading-7 text-foreground/85">{payload.body}</p>
+          {payload.evidenceRefs?.length ? (
+            <div className="mt-7">
+              <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                References consulted
+              </p>
+              <div className="mt-3 space-y-3">
+                {payload.evidenceRefs.map((ref) => (
+                  <div key={ref.id} className="rounded-md border border-border/70 bg-background/35 p-3">
+                    <p className={cn("font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70", ref.source.toLowerCase().includes("cala") && "text-white")}>
+                      {ref.source}{ref.date ? ` · ${fmtOptionalDate(ref.date)}` : ""}
+                    </p>
+                    {ref.title ? (
+                      <p className="mt-1.5 text-sm leading-5 text-foreground/90">
+                        {referenceHref(ref) ? (
+                          <a href={referenceHref(ref)} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-1.5 transition hover:text-white">
+                            <span>{ref.title}</span>
+                            <ExternalLink className="mt-0.5 size-3 shrink-0" />
+                          </a>
+                        ) : (
+                          ref.title
+                        )}
+                      </p>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {payload.citations.length > 0 ? (
             <SourceLine sources={payload.citations} className="mt-6" />
           ) : null}
@@ -588,6 +763,9 @@ function TheCall({
   const accent = actionArc[action]
   const shiftAccent = actionArc[config.countdownEvent.shiftTo]
   const verb = ACTION_LABELS[action].toLowerCase()
+  const rationaleRefs = report
+    ? report.drivers.slice(0, 3).flatMap((driver) => driver.evidence_ids)
+    : selectedDrivers(c, config).slice(0, 3).map((driver) => driver.sourceId ?? driver.label)
 
   return (
     <Chapter
@@ -623,9 +801,8 @@ function TheCall({
               payload={{
                 title: "Why this call",
                 body: rationale,
-                citations:
-                  report?.drivers.slice(0, 3).flatMap((driver) => driver.evidence_ids) ??
-                  selectedDrivers(c, config).slice(0, 3).map((driver) => driver.sourceId ?? driver.label),
+                citations: evidenceSourceLabels(c, report, rationaleRefs),
+                evidenceRefs: demoEvidenceReferences(c, report, rationaleRefs),
               }}
             />
           </div>
@@ -659,10 +836,13 @@ function Forecast({
     `Over the ${horizon} horizon, ${c.name} prices look ${direction === "flat" ? "range-bound" : direction}, tracking the balance of the active drivers.`
   const up = direction === "upward"
   const flat = direction === "flat"
-  const color = flat ? "var(--muted-foreground)" : up ? "var(--positive)" : "var(--negative)"
+  const color = flat ? reportPressureColor("neutral") : reportPressureColor(up ? "up" : "down")
   const DirIcon = up ? ArrowUpRight : flat ? ArrowRight : ArrowDownRight
   const span = Math.max(high - low, 0.1)
   const place = (n: number) => Math.max(0, Math.min(100, ((n - low) / span) * 100))
+  const forecastRefs = report
+    ? report.drivers.slice(0, 3).flatMap((driver) => driver.evidence_ids)
+    : selectedDrivers(c, config).slice(0, 2).map((driver) => driver.sourceId ?? driver.label)
 
   return (
     <Chapter index="02" eyebrow="Forecast" title="Where the price goes from here." lede={interpretation}>
@@ -700,9 +880,8 @@ function Forecast({
               payload={{
                 title: "Forecast basis",
                 body: interpretation,
-                citations:
-                  report?.drivers.slice(0, 3).flatMap((driver) => driver.evidence_ids) ??
-                  selectedDrivers(c, config).slice(0, 2).map((driver) => driver.sourceId ?? driver.label),
+                citations: evidenceSourceLabels(c, report, forecastRefs),
+                evidenceRefs: demoEvidenceReferences(c, report, forecastRefs),
               }}
             />
           </div>
@@ -815,12 +994,12 @@ function PriceWhatIf({
   const activeScenario = fallbackScenarios.find((scenario) => scenario.id === activeId) ?? fallbackScenarios[0]
   const data = agentPaths.length > 0 ? buildAgentPriceData(c, agentPaths) : buildForkedPriceData(c, activeScenario)
   const today = c.series.at(-1)?.date
-  const directionColor = c.change30d >= 0 ? "var(--positive)" : "var(--negative)"
+  const directionColor = c.change30d >= 0 ? reportPressureColor("up") : reportPressureColor("down")
   const activeKey = activeAgentPath?.graph_line_key ?? activeId
   const scenarioItems = agentPaths.length > 0 ? agentPaths : fallbackScenarios
 
   const lineColorFor = (key: string) =>
-    key === "upside" ? "var(--positive)" : key === "downside" ? "var(--negative)" : "var(--cala)"
+    key === "upside" ? reportPressureColor("up") : key === "downside" ? reportPressureColor("down") : "var(--cala)"
 
   return (
     <Chapter
@@ -853,8 +1032,8 @@ function PriceWhatIf({
             <Area type="monotone" dataKey="history" stroke="none" fill="url(#priceFill)" connectNulls isAnimationActive />
             <Line type="monotone" dataKey="history" dot={false} stroke={directionColor} strokeWidth={2.5} connectNulls />
             <Line type="monotone" dataKey="base" dot={false} stroke="var(--cala)" strokeWidth={activeKey === "base" ? 3.5 : 1.5} strokeOpacity={activeKey === "base" ? 1 : 0.3} connectNulls isAnimationActive />
-            <Line type="monotone" dataKey="upside" dot={false} stroke="var(--positive)" strokeWidth={activeKey === "upside" ? 3.5 : 1.5} strokeOpacity={activeKey === "upside" ? 1 : 0.3} connectNulls isAnimationActive />
-            <Line type="monotone" dataKey="downside" dot={false} stroke="var(--negative)" strokeWidth={activeKey === "downside" ? 3.5 : 1.5} strokeOpacity={activeKey === "downside" ? 1 : 0.3} connectNulls isAnimationActive />
+            <Line type="monotone" dataKey="upside" dot={false} stroke={reportPressureColor("up")} strokeWidth={activeKey === "upside" ? 3.5 : 1.5} strokeOpacity={activeKey === "upside" ? 1 : 0.3} connectNulls isAnimationActive />
+            <Line type="monotone" dataKey="downside" dot={false} stroke={reportPressureColor("down")} strokeWidth={activeKey === "downside" ? 3.5 : 1.5} strokeOpacity={activeKey === "downside" ? 1 : 0.3} connectNulls isAnimationActive />
           </ComposedChart>
         </ResponsiveContainer>
       </div>
@@ -867,6 +1046,9 @@ function PriceWhatIf({
           const isAgent = "graph_points" in scenario
           const driverIds = isAgent ? scenario.driver_ids : scenario.driverIds
           const evidenceIds = isAgent ? scenario.evidence_ids : scenario.evidenceIds
+          const explainRefs = isAgent && scenario.explainability?.click_evidence_ids.length
+            ? scenario.explainability.click_evidence_ids
+            : evidenceIds
           const supporting = isAgent ? agentEvidenceFor(report, evidenceIds) : evidenceFor(c, evidenceIds)
           const lineKey = isAgent ? scenario.graph_line_key : scenario.id
           const lineColor = lineColorFor(lineKey)
@@ -901,6 +1083,7 @@ function PriceWhatIf({
                       ? scenario.explainability?.plain_language ?? scenario.summary
                       : `This branch reweights the call around ${driverIds.map((id) => c.drivers.find((driver) => driver.id === id)?.label).filter(Boolean).join(" and ")}.`,
                     citations: supporting.map((item) => item.source),
+                    evidenceRefs: demoEvidenceReferences(c, report, explainRefs),
                   }}
                 />
               </div>
@@ -919,7 +1102,7 @@ type DriverRow = {
   pct: number
   meta: string
   explanation: string
-  refs: string[]
+  refs: EvidenceReference[]
 }
 
 function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
@@ -939,7 +1122,7 @@ function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
           pct: Math.round(Math.abs(driver.impact_score) * 100),
           meta: `${Math.round(driver.confidence * 100)}% confidence · ${driver.impact} impact`,
           explanation: driver.explanation,
-          refs: driver.evidence_ids,
+          refs: evidenceReferences(c, report, driver.evidence_ids),
         })),
     }))
   } else {
@@ -956,7 +1139,7 @@ function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
           pct: Math.round(driver.weight * 100),
           meta: driver.category,
           explanation: driver.rationale,
-          refs: driver.sourceId ? [driver.sourceId] : [],
+          refs: evidenceReferences(c, report, driver.sourceId ? [driver.sourceId] : []),
         })),
     }))
   }
@@ -973,11 +1156,11 @@ function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
           <div key={col.dir} className={cn(col.dir === "down" ? "lg:pl-12" : "lg:pr-12")}>
             <div className="flex items-center gap-2.5">
               {col.dir === "up" ? (
-                <TrendingUp className="size-5 text-positive" />
+                <TrendingUp className={cn("size-5", reportPressureClass("up"))} />
               ) : (
-                <TrendingDown className="size-5 text-negative" />
+                <TrendingDown className={cn("size-5", reportPressureClass("down"))} />
               )}
-              <h3 className={cn("font-mono text-xs uppercase tracking-[0.24em]", col.dir === "up" ? "text-positive" : "text-negative")}>
+              <h3 className={cn("font-mono text-xs uppercase tracking-[0.24em]", reportPressureClass(col.dir))}>
                 {col.dir === "up" ? "Upward pressure" : "Downward pressure"}
               </h3>
             </div>
@@ -988,7 +1171,7 @@ function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
                     <span className="display-serif text-2xl leading-snug">{item.label}</span>
                     <span
                       className="shrink-0 display-serif text-xl tabular-nums"
-                      style={{ color: col.dir === "up" ? "var(--positive)" : "var(--negative)" }}
+                      style={{ color: reportPressureColor(col.dir) }}
                     >
                       {item.pct}%
                     </span>
@@ -996,14 +1179,12 @@ function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
                   <div className="mt-3 h-[3px] w-full overflow-hidden rounded-full bg-border/50">
                     <div
                       className="h-full rounded-full"
-                      style={{ width: `${item.ratio * 100}%`, background: col.dir === "up" ? "var(--positive)" : "var(--negative)" }}
+                      style={{ width: `${item.ratio * 100}%`, background: reportPressureColor(col.dir) }}
                     />
                   </div>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    {item.explanation}
-                    <Refs ids={item.refs} />
-                  </p>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">{item.explanation}</p>
                   <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/60">{item.meta}</p>
+                  <SourceDetails refs={item.refs} />
                 </li>
               ))}
             </ul>
@@ -1046,7 +1227,7 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
               <dl className="mt-10 space-y-6">
                 <div className="flex items-baseline justify-between gap-6 border-b border-border/50 pb-3">
                   <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Trend</dt>
-                  <dd className={cn("display-serif text-3xl tabular-nums", col.change >= 0 ? "text-positive" : "text-negative")}>
+                  <dd className={cn("display-serif text-3xl tabular-nums", col.change >= 0 ? reportPressureClass("up") : reportPressureClass("down"))}>
                     {fmtPct(col.change)}
                   </dd>
                 </div>
@@ -1160,7 +1341,7 @@ function ImpactNumber({ score }: { score: number }) {
     <div className="flex items-start gap-3 md:flex-col md:items-end md:text-right">
       <span
         className="display-serif text-5xl tabular-nums"
-        style={{ color: score > 0 ? "var(--positive)" : score < 0 ? "var(--negative)" : undefined }}
+        style={{ color: score > 0 ? reportPressureColor("up") : score < 0 ? reportPressureColor("down") : undefined }}
       >
         {score > 0 ? "+" : ""}
         {score}
@@ -1205,7 +1386,7 @@ function NewsChapter({
               <article key={item.id} className="grid gap-5 py-7 md:grid-cols-[1fr_auto] md:gap-10">
                 <div>
                   <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    <span className="text-foreground">{item.source}</span> · {fmtOptionalDate(item.date)} ·{" "}
+                    <span className={cn("text-foreground", item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span> · {fmtOptionalDate(item.date)} ·{" "}
                     {reliabilityLabel[item.reliability]} reliability · <span className={tone.className}>{tone.label}</span>
                   </p>
                   <h3 className="display-serif mt-3 text-2xl leading-snug sm:text-3xl">{item.title}</h3>
@@ -1227,7 +1408,8 @@ function NewsChapter({
                       payload={{
                         title: item.title,
                         body: driver ? `${item.signal_extracted} Connected driver: ${driver.label}. ${driver.explanation}` : item.signal_extracted,
-                        citations: [item.source, item.id],
+                        citations: [item.source],
+                        evidenceRefs: demoEvidenceReferences(c, report, [item.id, ...(driver?.evidence_ids ?? [])]),
                       }}
                     />
                   </div>
@@ -1257,12 +1439,12 @@ function NewsChapter({
           const impact = newsImpact(c, item)
           const tone = impact.driver?.direction === "up" ? "Bullish" : impact.driver?.direction === "down" ? "Bearish" : "Neutral"
           const toneColor =
-            impact.driver?.direction === "down" ? "text-negative" : impact.driver?.direction === "up" ? "text-positive" : "text-muted-foreground"
+            impact.driver?.direction === "down" ? reportPressureClass("down") : impact.driver?.direction === "up" ? reportPressureClass("up") : "text-muted-foreground"
           return (
             <article key={item.id} className="grid gap-5 py-7 md:grid-cols-[1fr_auto] md:gap-10">
               <div>
                 <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                  <span className="text-foreground">{item.source}</span> · {fmtDate(item.date)} ·{" "}
+                  <span className={cn("text-foreground", item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span> · {fmtDate(item.date)} ·{" "}
                   {reliabilityLabel[item.reliability]} reliability · <span className={toneColor}>{tone}</span>
                 </p>
                 <h3 className="display-serif mt-3 text-2xl leading-snug sm:text-3xl">{item.title}</h3>
@@ -1278,7 +1460,8 @@ function NewsChapter({
                           ? `${impact.driver.label} is the connected driver, and its rationale is: ${impact.driver.rationale}`
                           : "No explicit driver link is available, so the item is treated as contextual evidence."
                       }`,
-                      citations: [item.source, item.id],
+                      citations: [item.source],
+                      evidenceRefs: demoEvidenceReferences(c, report, [item.id, impact.driver?.sourceId ?? ""].filter(Boolean)),
                     }}
                   />
                 </div>
@@ -1292,12 +1475,12 @@ function NewsChapter({
   )
 }
 
-type MonitorEntry = { item: string; why: string; refs: string[] }
+type MonitorEntry = { item: string; why: string; refs: EvidenceReference[] }
 
 function fallbackMonitor(c: Commodity, config: ReportConfig): MonitorEntry[] {
   const entries: MonitorEntry[] = selectedDrivers(c, config)
     .slice(0, 3)
-    .map((driver) => ({ item: driver.label, why: driver.rationale, refs: driver.sourceId ? [driver.sourceId] : [] }))
+    .map((driver) => ({ item: driver.label, why: driver.rationale, refs: evidenceReferences(c, null, driver.sourceId ? [driver.sourceId] : []) }))
   entries.unshift({
     item: config.countdownEvent.label,
     why: `Due ${fmtDate(config.countdownEvent.date)}. If ${config.countdownEvent.outcome}, the call may shift to ${config.countdownEvent.shiftTo.toUpperCase()}.`,
@@ -1309,7 +1492,7 @@ function fallbackMonitor(c: Commodity, config: ReportConfig): MonitorEntry[] {
 function WhatToMonitor({ c, config }: { c: Commodity; config: ReportConfig }) {
   const report = agentReport(config)
   const entries: MonitorEntry[] = report?.what_to_monitor?.length
-    ? report.what_to_monitor.map((m) => ({ item: m.item, why: m.why, refs: m.evidence_source_ids }))
+    ? report.what_to_monitor.map((m) => ({ item: m.item, why: m.why, refs: evidenceReferences(c, report, m.evidence_source_ids) }))
     : fallbackMonitor(c, config)
 
   return (
@@ -1329,8 +1512,8 @@ function WhatToMonitor({ c, config }: { c: Commodity; config: ReportConfig }) {
               <p className="display-serif text-2xl leading-snug">{entry.item}</p>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
                 {entry.why}
-                <Refs ids={entry.refs} />
               </p>
+              <SourceDetails refs={entry.refs} />
             </div>
           </li>
         ))}
@@ -1342,9 +1525,26 @@ function WhatToMonitor({ c, config }: { c: Commodity; config: ReportConfig }) {
 function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
   const report = agentReport(config)
   const drivers = selectedDrivers(c, config)
-  const sources = Array.from(new Set((report?.evidence.map((item) => item.source) ?? c.evidence.map((item) => item.source)).concat("Cala")))
+  const evidence = report?.evidence ?? c.evidence.filter((item) => (config.news ?? []).includes(item.id))
+  const sources = Array.from(new Set(evidence.map((item) => item.source).concat("Cala")))
   const executivePdf = config.agentResponse?.executive_pdf
   const factors = report?.drivers.map((driver) => driver.label) ?? drivers.map((driver) => driver.label)
+  const request = config.agentRequest
+  const querySummary = request
+    ? `${request.material} procurement analysis · ${request.horizon_label} / ${request.horizon_days} days · ${request.priority_profile.replace(/_/g, " ")} profile`
+    : `${c.name} procurement analysis · ${config.horizon} horizon`
+  const contextUsed = request
+    ? [
+        request.context.current_date && "current date",
+        request.context.spot_price && "spot price",
+        request.context.warehouse_fill_pct != null && `warehouse ${request.context.warehouse_fill_pct}%`,
+        request.context.related_news && "related news",
+        request.context.source_reliability && "source reliability",
+        request.include_market_drivers && "market drivers",
+      ].filter(Boolean)
+    : Object.entries(config.contextFactors)
+        .filter(([, enabled]) => enabled)
+        .map(([key]) => key.replace(/[A-Z]/g, (letter) => ` ${letter.toLowerCase()}`))
   const meta = [
     { label: "Generated by", value: config.generatedBy },
     { label: "Generated at", value: fmtDate(report?.generated_at ?? config.generatedAt) },
@@ -1371,11 +1571,34 @@ function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
           </div>
           <div>
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Sources consulted</p>
-            <p className="mt-4 text-base leading-7 text-foreground/85">{sources.join("  ·  ")}</p>
+            <SourceLine sources={sources} className="mt-4" />
+          </div>
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Agent query context</p>
+            <p className="mt-4 text-base leading-7 text-foreground/85">{querySummary}</p>
+            {contextUsed.length > 0 ? (
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                Inputs used: {contextUsed.join(", ")}.
+              </p>
+            ) : null}
+          </div>
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">News consulted</p>
+            <div className="mt-4 space-y-2.5">
+              {evidence.map((item) => (
+                <div key={item.id} className="border-l border-border/70 pl-3">
+                  <p className="text-sm leading-6 text-foreground/85">{item.title}</p>
+                  <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                    <span className={cn(item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span>
+                    {" · "}{fmtOptionalDate(item.date)} · {reliabilityLabel[item.reliability]} reliability
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
           {executivePdf?.status === "ready" ? (
             <a
-              href={executivePdf.url}
+              href={resolveBackendUrl(executivePdf.url)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-2 border-b border-cala/40 pb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-cala transition hover:border-foreground/60 hover:text-foreground"
@@ -1446,6 +1669,8 @@ function CinematicReport({
   const [qrOpen, setQrOpen] = useState(false)
   const lenisRef = useLenisScroll()
   const sectionNavigation = useReportSectionNavigation(!qrOpen && !explain, lenisRef)
+  const executivePdfUrl = reportPdfDownloadUrl(config)
+  const executivePdfFileName = config.agentResponse?.executive_pdf?.file_name ?? `${config.commodityId}-executive-report.pdf`
 
   const goBack = () => {
     const run = () => {
@@ -1483,19 +1708,36 @@ function CinematicReport({
         ) : (
           <span />
         )}
-        <motion.button
-          type="button"
-          onClick={() => setQrOpen(true)}
-          aria-label="Share"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
-          whileHover={{ scale: 1.12, opacity: 0.7 }}
-          whileTap={{ scale: 0.9 }}
-          className="pointer-events-auto inline-flex items-center justify-center text-foreground"
-        >
-          <QrCode className="size-7" strokeWidth={2.25} />
-        </motion.button>
+        <div className="pointer-events-auto flex items-center gap-5">
+          <motion.a
+            href={executivePdfUrl}
+            download={executivePdfFileName}
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="Download executive PDF"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
+            whileHover={{ scale: 1.12, opacity: 0.7 }}
+            whileTap={{ scale: 0.9 }}
+            className="inline-flex items-center justify-center text-foreground"
+          >
+            <Download className="size-7" strokeWidth={2.25} />
+          </motion.a>
+          <motion.button
+            type="button"
+            onClick={() => setQrOpen(true)}
+            aria-label="Share"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
+            whileHover={{ scale: 1.12, opacity: 0.7 }}
+            whileTap={{ scale: 0.9 }}
+            className="inline-flex items-center justify-center text-foreground"
+          >
+            <QrCode className="size-7" strokeWidth={2.25} />
+          </motion.button>
+        </div>
       </div>
 
       <Cover c={c} config={config} publicMode={publicMode} />
@@ -1523,15 +1765,27 @@ function CinematicReport({
 export function ReportViewer({ publicMode = false }: { publicMode?: boolean }) {
   const { id, reportId = "" } = useParams<{ id?: string; reportId: string }>()
   const storedConfig = reportId ? loadReportConfig(reportId) : null
-  const commodityId = storedConfig?.commodityId ?? reportCommodityId(reportId) ?? id
+  const shouldFetchRemote = Boolean(reportId && !storedConfig)
+  const {
+    data: remoteResponse,
+    isLoading: remoteLoading,
+  } = useQuery({
+    queryKey: ["agent-report", reportId],
+    queryFn: () => api.getReport(reportId),
+    enabled: shouldFetchRemote,
+    retry: false,
+  })
+  const commodityId = storedConfig?.commodityId ?? remoteResponse?.material ?? reportCommodityId(reportId) ?? id
   const { data, isLoading, isError } = useCommodity(commodityId as Commodity["id"])
 
   const config = useMemo(() => {
     if (!data || !reportId) return null
+    if (storedConfig) return storedConfig
+    if (remoteResponse?.status === "completed") return reportConfigFromAgentResponse(data, remoteResponse)
     return storedConfig ?? defaultReportConfig(data, reportId)
-  }, [data, reportId, storedConfig])
+  }, [data, remoteResponse, reportId, storedConfig])
 
-  if (isLoading) {
+  if (isLoading || (shouldFetchRemote && remoteLoading && !storedConfig)) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Preparing brief...</div>
   }
 

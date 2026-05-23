@@ -184,6 +184,13 @@ const HORIZON_DAYS: Record<ReportHorizon, number> = {
   "12M": 365,
 }
 
+function horizonFromDays(days: number): ReportHorizon {
+  if (days <= 30) return "1M"
+  if (days <= 90) return "3M"
+  if (days <= 180) return "6M"
+  return "12M"
+}
+
 const EVENT_COPY: Record<CommodityId, ReportConfig["countdownEvent"]> = {
   aluminium: {
     label: "LME stock update",
@@ -334,6 +341,36 @@ export function defaultReportConfig(c: Commodity, reportId = createReportId(c.id
     generatedBy: "Marc Vendrell",
     generatedAt,
     versionHash: versionHash(`${reportId}:${c.id}:${generatedAt}`),
+  }
+}
+
+export function reportConfigFromAgentResponse(c: Commodity, response: AgentAnalyzeResponse): ReportConfig {
+  const report = response.report_json
+  const reportId = response.request_id
+  const horizon = horizonFromDays(report.horizon_days)
+  const generatedAt = response.generated_at
+  const factors = report.drivers.map((driver) => driver.id)
+  const news = report.evidence.map((item) => item.id)
+
+  return {
+    reportId,
+    commodityId: response.material,
+    factors,
+    contextFactors: {
+      currentDate: Boolean(report.market_context.current_date),
+      spotPrice: Boolean(report.market_context.spot_price),
+      warehouse: report.market_context.warehouse_fill_pct != null,
+      recentNews: report.evidence.length > 0,
+      sourceReliability: report.evidence.some((item) => item.reliability != null),
+    },
+    news,
+    horizon,
+    countdownEvent: EVENT_COPY[c.id],
+    whatIfScenarios: defaultWhatIfScenarios(c),
+    generatedBy: "Cales Agent",
+    generatedAt,
+    versionHash: versionHash(`${reportId}:${response.material}:${generatedAt}:${factors.join(",")}`),
+    agentResponse: response,
   }
 }
 
