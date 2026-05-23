@@ -51,7 +51,18 @@ export function SidebarUser() {
 
   function handleLogout() {
     toast("Signed out")
-    navigate("/login")
+    // Preload the login artwork so the page doesn't flash in before the image is ready.
+    let done = false
+    const go = () => {
+      if (done) return
+      done = true
+      navigate("/login")
+    }
+    const img = new Image()
+    img.onload = go
+    img.onerror = go
+    img.src = "/pexels-matreding-11666903.jpg"
+    window.setTimeout(go, 1200) // safety: never block logout for longer than this
   }
 
   return (

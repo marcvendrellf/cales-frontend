@@ -19,9 +19,10 @@ import {
   X,
 } from "lucide-react"
 import {
+  Area,
   CartesianGrid,
+  ComposedChart,
   Line,
-  LineChart,
   ReferenceLine,
   ResponsiveContainer,
   Tooltip,
@@ -711,6 +712,12 @@ function Forecast({
   )
 }
 
+// Deterministic pseudo-random in [-1, 1] so projected paths wiggle realistically without flicker.
+function seededNoise(seed: number) {
+  const x = Math.sin(seed * 12.9898) * 43758.5453
+  return (x - Math.floor(x)) * 2 - 1
+}
+
 function buildForkedPriceData(c: Commodity, activeScenario: WhatIfScenarioConfig) {
   const history = c.series.slice(-80)
   const last = history.at(-1)
@@ -733,16 +740,19 @@ function buildForkedPriceData(c: Commodity, activeScenario: WhatIfScenarioConfig
   }))
 
   const start = new Date(`${last.date}T12:00:00Z`)
+  const amp = last.value * 0.011
   for (let step = 0; step <= 28; step += 1) {
     const date = new Date(start)
     date.setUTCDate(date.getUTCDate() + step)
     const t = step / 28
+    // Noise grows from 0 at "today" so the branches peel off the history smoothly.
+    const jitter = (k: number) => seededNoise(step * 3.1 + k) * amp * t
     data.push({
       date: date.toISOString().slice(0, 10),
       history: step === 0 ? last.value : null,
-      base: Math.round(last.value * (1 + t * 0.025) * 100) / 100,
-      upside: Math.round(last.value * (1 + t * (0.075 + Math.max(0, bias))) * 100) / 100,
-      downside: Math.round(last.value * (1 - t * (0.055 + Math.max(0, -bias))) * 100) / 100,
+      base: Math.round((last.value * (1 + t * 0.025) + jitter(1)) * 100) / 100,
+      upside: Math.round((last.value * (1 + t * (0.075 + Math.max(0, bias))) + jitter(2)) * 100) / 100,
+      downside: Math.round((last.value * (1 - t * (0.055 + Math.max(0, -bias))) + jitter(3)) * 100) / 100,
     })
   }
   return data
@@ -761,11 +771,28 @@ function buildAgentPriceData(c: Commodity, paths: AgentPricePath[]) {
 
   paths.forEach((path) => {
     const key = path.graph_line_key === "upside" || path.graph_line_key === "downside" ? path.graph_line_key : "base"
-    path.graph_points.forEach((point) => {
-      const row = byDate.get(point.date) ?? { date: point.date, history: null, base: null, upside: null, downside: null }
-      row[key] = point.value
-      byDate.set(point.date, row)
-    })
+    const pts = [...path.graph_points].sort((a, b) => a.date.localeCompare(b.date))
+    // Densify the sparse backend points to daily with noise so the projection looks realistic;
+    // the original anchor points are kept exact.
+    for (let i = 0; i < pts.length - 1; i += 1) {
+      const a = pts[i]
+      const b = pts[i + 1]
+      const aDate = new Date(`${a.date}T12:00:00Z`)
+      const bDate = new Date(`${b.date}T12:00:00Z`)
+      const days = Math.max(1, Math.round((bDate.getTime() - aDate.getTime()) / 86_400_000))
+      const amp = Math.abs(b.value) * 0.009
+      for (let d = 0; d <= days; d += 1) {
+        const t = d / days
+        const date = new Date(aDate)
+        date.setUTCDate(date.getUTCDate() + d)
+        const iso = date.toISOString().slice(0, 10)
+        const lerp = a.value + (b.value - a.value) * t
+        const noise = d === 0 || d === days ? 0 : seededNoise(i * 137 + d * 5.7) * amp
+        const row = byDate.get(iso) ?? { date: iso, history: null, base: null, upside: null, downside: null }
+        row[key] = Math.round((lerp + noise) * 100) / 100
+        byDate.set(iso, row)
+      }
+    }
   })
 
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
@@ -804,7 +831,14 @@ function PriceWhatIf({
     >
       <div className="h-[clamp(170px,24vh,340px)]">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ top: 16, right: 16, bottom: 4, left: 0 }}>
+          <ComposedChart data={data} margin={{ top: 16, right: 16, bottom: 4, left: 0 }}>
+            <defs>
+              <linearGradient id="priceFill" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={directionColor} stopOpacity={0.28} />
+                <stop offset="55%" stopColor={directionColor} stopOpacity={0.08} />
+                <stop offset="100%" stopColor={directionColor} stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
             <XAxis dataKey="date" tick={{ fill: "#7d7d7a", fontSize: 11 }} minTickGap={48} axisLine={false} tickLine={false} />
             <YAxis
@@ -816,11 +850,12 @@ function PriceWhatIf({
             />
             <Tooltip contentStyle={{ background: "#141416", border: "1px solid #2a2a2d", borderRadius: 6, fontSize: 12 }} />
             {today ? <ReferenceLine x={today} stroke="#5a5a5d" strokeDasharray="3 3" /> : null}
+            <Area type="monotone" dataKey="history" stroke="none" fill="url(#priceFill)" connectNulls isAnimationActive />
             <Line type="monotone" dataKey="history" dot={false} stroke={directionColor} strokeWidth={2.5} connectNulls />
             <Line type="monotone" dataKey="base" dot={false} stroke="var(--cala)" strokeWidth={activeKey === "base" ? 3.5 : 1.5} strokeOpacity={activeKey === "base" ? 1 : 0.3} connectNulls isAnimationActive />
             <Line type="monotone" dataKey="upside" dot={false} stroke="var(--positive)" strokeWidth={activeKey === "upside" ? 3.5 : 1.5} strokeOpacity={activeKey === "upside" ? 1 : 0.3} connectNulls isAnimationActive />
             <Line type="monotone" dataKey="downside" dot={false} stroke="var(--negative)" strokeWidth={activeKey === "downside" ? 3.5 : 1.5} strokeOpacity={activeKey === "downside" ? 1 : 0.3} connectNulls isAnimationActive />
-          </LineChart>
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/60">
@@ -1038,10 +1073,14 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
 }
 
 const MAP_CENTER: [number, number] = [16, 45]
-const MAP_ACTIVE_CENTER: [number, number] = [-9, 50]
 
 function MapChapter({ c }: { c: Commodity }) {
   const points = REPORT_MAP_POINTS[c.id]
+  // Frame the fly-in on the European cluster, excluding far-flung macro points (e.g. China).
+  const framePoints = useMemo(
+    () => points.filter((point) => point.coordinates[0] >= -25 && point.coordinates[0] <= 45),
+    [points],
+  )
   const sectionRef = useRef<HTMLElement | null>(null)
   const [inView, setInView] = useState(false)
 
@@ -1071,7 +1110,7 @@ function MapChapter({ c }: { c: Commodity }) {
   return (
     <section ref={sectionRef} className="report-chapter relative flex min-h-screen snap-start items-center overflow-hidden">
       <div className="absolute inset-0 brightness-[1.45]">
-        <GeoMap center={MAP_CENTER} zoom={2.7} points={points} activeCenter={MAP_ACTIVE_CENTER} activeZoom={3.8} heatmap active={inView} interactive={false} className="size-full" />
+        <GeoMap center={MAP_CENTER} zoom={2.7} points={points} framePoints={framePoints} heatmap active={inView} interactive={false} className="size-full" />
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/95 via-background/45 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/80 to-transparent" />

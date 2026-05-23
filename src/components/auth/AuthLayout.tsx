@@ -1,5 +1,7 @@
+import { useState } from "react"
 import { Link } from "react-router-dom"
 import { Logo } from "@/components/layout/Logo"
+import { cn } from "@/lib/utils"
 
 interface AuthLayoutProps {
   children: React.ReactNode
@@ -8,30 +10,34 @@ interface AuthLayoutProps {
 }
 
 export function AuthLayout({ children, eyebrow, description }: AuthLayoutProps) {
+  const [imageLoaded, setImageLoaded] = useState(false)
   return (
     <main className="grid min-h-svh bg-background text-foreground lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.75fr)]">
       <section className="relative hidden overflow-hidden border-r border-border bg-sidebar lg:block">
         <img
           src="/pexels-matreding-11666903.jpg"
           alt=""
-          className="absolute inset-0 h-full w-full object-cover opacity-20"
+          onLoad={() => setImageLoaded(true)}
+          className={cn(
+            "absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ease-out",
+            imageLoaded ? "opacity-20" : "opacity-0",
+          )}
         />
-        <div className="relative flex h-full flex-col justify-between p-10">
+        <div className="relative flex h-full flex-col p-10">
           <Logo />
-          <div className="max-w-lg">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              {eyebrow}
-            </p>
-            <h1 className="display-serif mt-4 text-5xl leading-tight text-foreground">
-              See the latest buying signals before the market moves.
-            </h1>
-            <p className="mt-5 max-w-md text-sm leading-6 text-muted-foreground">
-              {description}
-            </p>
+          <div className="flex flex-1 items-center">
+            <div className="max-w-lg">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {eyebrow}
+              </p>
+              <h1 className="display-serif mt-4 text-5xl leading-tight text-foreground">
+                See the latest buying signals before the market moves.
+              </h1>
+              <p className="mt-5 max-w-md text-sm leading-6 text-muted-foreground">
+                {description}
+              </p>
+            </div>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Market signals for procurement teams.
-          </p>
         </div>
       </section>
 

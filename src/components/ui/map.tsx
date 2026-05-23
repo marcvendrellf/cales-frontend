@@ -57,8 +57,7 @@ export function Map({
   className,
   heatmap = false,
   active,
-  activeCenter,
-  activeZoom,
+  framePoints,
   interactive = true,
 }: MapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -188,20 +187,29 @@ export function Map({
   useEffect(() => {
     if (active === undefined) return
 
+    const frame = framePoints && framePoints.length > 0 ? framePoints : points
+
     const run = () => {
       const map = mapRef.current
       if (!map) return
-      if (active) {
-        if (activeCenter) {
-          map.flyTo({ center: activeCenter, zoom: activeZoom ?? 4, duration: 2600, curve: 1.4, essential: true })
-        } else if (points.length > 1) {
-          const bounds = points.reduce(
+      if (active && frame.length > 0) {
+        // Clear the overlay panel on the left and keep margin on the other sides so the
+        // points sit centered in the visible map rather than hugging the edges.
+        const leftPad = Math.max(560, Math.min(Math.round(window.innerWidth * 0.44), 620))
+        if (frame.length === 1) {
+          map.flyTo({ center: frame[0].coordinates, zoom: 4.6, duration: 2600, curve: 1.4, essential: true })
+        } else {
+          const bounds = frame.reduce(
             (nextBounds, point) => nextBounds.extend(point.coordinates),
-            new LngLatBounds(points[0].coordinates, points[0].coordinates),
+            new LngLatBounds(frame[0].coordinates, frame[0].coordinates),
           )
-          map.fitBounds(bounds, { padding: 80, duration: 2600, maxZoom: 5, essential: true })
-        } else if (points.length === 1) {
-          map.flyTo({ center: points[0].coordinates, zoom: 5, duration: 2600, essential: true })
+          map.fitBounds(bounds, {
+            padding: { top: 150, right: 180, bottom: 180, left: leftPad },
+            duration: 2600,
+            maxZoom: 4.8,
+            curve: 1.4,
+            essential: true,
+          })
         }
       } else {
         map.easeTo({ center, zoom, duration: 1500, essential: true })
@@ -211,7 +219,7 @@ export function Map({
     run()
     const retry = window.setTimeout(run, 450)
     return () => window.clearTimeout(retry)
-  }, [active, points, center, zoom, activeCenter, activeZoom])
+  }, [active, points, center, zoom, framePoints])
 
   return (
     <div

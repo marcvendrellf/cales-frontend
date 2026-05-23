@@ -75,13 +75,13 @@ export function AppSidebar() {
                     </SidebarMenuAction>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <SidebarMenuSub className="mx-0 border-l-0 px-0">
+                    <SidebarMenuSub className="ml-3.5 mr-0 border-sidebar-border/60 px-0">
                       {COMMODITIES.map((commodity) => (
                         <SidebarMenuSubItem key={commodity.id}>
                           <SidebarMenuSubButton
                             asChild
                             isActive={pathname === `/c/${commodity.id}`}
-                            className="h-8 translate-x-0 pl-9"
+                            className="h-8 translate-x-0 pl-5"
                           >
                             <NavLink to={`/c/${commodity.id}`}>
                               {commodity.name}
