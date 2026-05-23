@@ -67,10 +67,32 @@ const actionArc: Record<Action, string> = {
   monitor: "var(--monitor)",
 }
 
-const actionFromAgent = (action?: string): Action =>
-  action?.toLowerCase() === "buy" || action?.toLowerCase() === "wait" || action?.toLowerCase() === "hedge" || action?.toLowerCase() === "monitor"
-    ? action.toLowerCase() as Action
-    : "monitor"
+function actionFromAgent(action?: string): Action {
+  const normalized = action?.trim().toLowerCase()
+  if (normalized === "buy" || normalized === "buy_now") return "buy"
+  if (normalized === "hedge") return "hedge"
+  if (normalized === "wait") return "wait"
+  if (normalized === "monitor") return "monitor"
+  return "monitor"
+}
+
+function agentDirection(direction?: string): "up" | "down" | "neutral" {
+  const normalized = direction?.toLowerCase() ?? ""
+  if (normalized.includes("upward")) return "up"
+  if (normalized.includes("downward")) return "down"
+  return "neutral"
+}
+
+function agentTone(direction?: string) {
+  const normalized = agentDirection(direction)
+  if (normalized === "up") return { label: "Bullish", className: "text-positive" }
+  if (normalized === "down") return { label: "Bearish", className: "text-negative" }
+  return { label: "Neutral", className: "text-muted-foreground" }
+}
+
+function fmtOptionalDate(iso?: string | null) {
+  return iso ? fmtDate(iso) : "No date"
+}
 
 const REPORT_CHAPTER_SELECTOR = ".report-chapter"
 const easeInOutCubic = (time: number) =>
@@ -225,7 +247,7 @@ function agentEvidenceFor(report: AgentWebsiteReport | null, ids: string[]) {
 }
 
 function agentDriverDirection(driver: AgentReportDriver) {
-  return driver.direction === "upward_price_pressure" ? "up" : "down"
+  return agentDirection(driver.direction)
 }
 
 function scenarioScore(c: Commodity, scenario: WhatIfScenarioConfig) {
@@ -1138,17 +1160,14 @@ function NewsChapter({
         <div className="divide-y divide-border/60 border-t border-border/60">
           {items.map((item) => {
             const driver = driverByEvidence.get(item.id)
-            const tone =
-              driver?.direction === "upward_price_pressure" ? "Bullish" : driver?.direction === "downward_price_pressure" ? "Bearish" : "Neutral"
-            const toneColor =
-              driver?.direction === "downward_price_pressure" ? "text-negative" : driver?.direction === "upward_price_pressure" ? "text-positive" : "text-muted-foreground"
+            const tone = agentTone(driver?.direction)
             const score = Math.round((driver?.impact_score ?? 0) * 100)
             return (
               <article key={item.id} className="grid gap-5 py-7 md:grid-cols-[1fr_auto] md:gap-10">
                 <div>
                   <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    <span className="text-foreground">{item.source}</span> · {fmtDate(item.date)} ·{" "}
-                    {reliabilityLabel[item.reliability]} reliability · <span className={toneColor}>{tone}</span>
+                    <span className="text-foreground">{item.source}</span> · {fmtOptionalDate(item.date)} ·{" "}
+                    {reliabilityLabel[item.reliability]} reliability · <span className={tone.className}>{tone.label}</span>
                   </p>
                   <h3 className="display-serif mt-3 text-2xl leading-snug sm:text-3xl">{item.title}</h3>
                   <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{item.signal_extracted}</p>

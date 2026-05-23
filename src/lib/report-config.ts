@@ -3,7 +3,7 @@ import type { Commodity, CommodityId } from "@/types"
 export type ReportContextKey = "currentDate" | "spotPrice" | "warehouse" | "recentNews" | "sourceReliability"
 export type ReportHorizon = "1M" | "3M" | "6M" | "12M"
 export type PriorityProfile = "cost_saving" | "balanced" | "risk_averse" | "supply_security" | "sustainability"
-export type AnalysisType = "base_case"
+export type AnalysisType = "base_case" | "stress_test" | "what_if"
 
 export type WhatIfScenarioId = "base" | "upside" | "downside"
 
@@ -57,7 +57,7 @@ export interface AgentAnalyzeRequest {
 
 export interface AgentAnalyzeResponse {
   request_id: string
-  status: "completed" | "failed" | "processing"
+  status: "completed" | "pending" | "error" | "failed" | "processing"
   material: CommodityId
   generated_at: string
   report_json: AgentWebsiteReport
@@ -66,7 +66,7 @@ export interface AgentAnalyzeResponse {
 }
 
 export interface AgentExecutivePdf {
-  status: "ready" | "processing" | "failed"
+  status: "ready" | "pending" | "error" | "processing" | "failed"
   file_name: string
   mime_type: "application/pdf"
   url: string
@@ -80,7 +80,7 @@ export interface AgentWebsiteReport {
   material: CommodityId
   generated_at: string
   horizon_days: number
-  horizon_label: ReportHorizon
+  horizon_label: string
   recommendation: AgentReportRecommendation
   market_context: AgentMarketContext
   forecast: AgentForecast
@@ -91,7 +91,7 @@ export interface AgentWebsiteReport {
 }
 
 export interface AgentReportRecommendation {
-  action: Uppercase<Commodity["recommendation"]["action"]>
+  action: string
   recommended_horizon_days: number
   confidence: number
   risk_score: number
@@ -142,7 +142,15 @@ export interface AgentPricePath {
 export interface AgentReportDriver {
   id: string
   label: string
-  direction: "upward_price_pressure" | "downward_price_pressure"
+  direction:
+    | "upward_price_pressure"
+    | "downward_price_pressure"
+    | "moderate_upward_price_pressure"
+    | "moderate_downward_price_pressure"
+    | "strong_upward_price_pressure"
+    | "strong_downward_price_pressure"
+    | "neutral"
+    | string
   buyer_impact: "positive" | "negative" | "neutral"
   impact: "low" | "medium" | "high"
   impact_score: number
@@ -155,7 +163,7 @@ export interface AgentReportEvidence {
   id: string
   source: string
   title: string
-  date: string
+  date: string | null
   reliability: "high" | "medium" | "low"
   url?: string
   signal_extracted: string
