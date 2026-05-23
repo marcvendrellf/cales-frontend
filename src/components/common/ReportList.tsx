@@ -1,7 +1,6 @@
 import { useMemo, useState } from "react"
-import { ChevronLeft, ChevronRight, Eye, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { ActionBadge } from "@/components/common/ActionBadge"
-import { ReportMaps } from "@/components/common/ReportMaps"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -21,7 +20,6 @@ type ReportRow = {
   title: string
   action: Action
   horizon: string
-  confidence: number
   sourceCount: number
   owner: string
   updatedAt: string
@@ -39,7 +37,6 @@ function buildReportRows(c: Commodity): ReportRow[] {
       title: `${c.name} procurement report`,
       action: entry.action,
       horizon: index === 0 ? c.recommendation.horizon : "Previous call",
-      confidence: Math.max(58, Math.round(c.recommendation.confidence * 100) - index * 7),
       sourceCount: Math.max(1, c.evidence.length - Math.min(index, 2)),
       owner: "Marc Vendrell",
       updatedAt: entry.date,
@@ -54,7 +51,6 @@ function buildReportRows(c: Commodity): ReportRow[] {
       title: `${c.name} procurement report`,
       action: c.recommendation.action,
       horizon: c.recommendation.horizon,
-      confidence: Math.round(c.recommendation.confidence * 100),
       sourceCount: c.evidence.length,
       owner: "Marc Vendrell",
       updatedAt: c.recommendation.updatedAt,
@@ -89,8 +85,6 @@ export function ReportList({ c }: { c: Commodity }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <ReportMaps c={c} />
-
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="relative max-w-sm flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -114,23 +108,19 @@ export function ReportList({ c }: { c: Commodity }) {
       <Card className="overflow-hidden rounded-lg border-border/70 bg-card/40 p-0 shadow-none">
         <Table className="table-fixed">
           <colgroup>
-            <col className="w-[28%]" />
-            <col className="w-[15%]" />
-            <col className="w-[15%]" />
-            <col className="w-[12%]" />
-            <col className="w-[14%]" />
+            <col className="w-[34%]" />
+            <col className="w-[18%]" />
+            <col className="w-[22%]" />
+            <col className="w-[16%]" />
             <col className="w-[10%]" />
-            <col className="w-[6%]" />
           </colgroup>
           <TableHeader className="bg-muted/60">
             <TableRow>
               <TableHead className="px-4">Report</TableHead>
               <TableHead className="px-4">Decision</TableHead>
               <TableHead className="px-4">Horizon</TableHead>
-              <TableHead className="px-4">Confidence</TableHead>
               <TableHead className="px-4">Updated</TableHead>
               <TableHead className="px-4">Sources</TableHead>
-              <TableHead className="px-4 text-right">View</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -151,33 +141,17 @@ export function ReportList({ c }: { c: Commodity }) {
                   <TableCell className="px-4 py-2 text-muted-foreground">
                     {row.horizon}
                   </TableCell>
-                  <TableCell className="px-4 py-2">
-                    <div className="flex items-center gap-2">
-                      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-secondary">
-                        <div
-                          className="h-full rounded-full bg-foreground/70"
-                          style={{ width: `${row.confidence}%` }}
-                        />
-                      </div>
-                      <span className="font-mono text-xs">{row.confidence}%</span>
-                    </div>
-                  </TableCell>
                   <TableCell className="px-4 py-2 font-mono text-xs text-muted-foreground">
                     {fmtDate(row.updatedAt)}
                   </TableCell>
                   <TableCell className="px-4 py-2 font-mono text-xs tabular-nums text-muted-foreground">
                     {row.sourceCount}
                   </TableCell>
-                  <TableCell className="px-4 py-2 text-right">
-                    <Button variant="ghost" size="icon-xs" aria-label={`View ${row.title}`}>
-                      <Eye />
-                    </Button>
-                  </TableCell>
                 </TableRow>
               ))
             ) : (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                   No reports found.
                 </TableCell>
               </TableRow>
