@@ -2,6 +2,8 @@ import type { Commodity, CommodityId } from "@/types"
 
 export type ReportContextKey = "currentDate" | "spotPrice" | "warehouse" | "recentNews" | "sourceReliability"
 export type ReportHorizon = "1M" | "3M" | "6M" | "12M"
+export type PriorityProfile = "cost_saving" | "balanced" | "risk_averse" | "supply_security" | "sustainability"
+export type AnalysisType = "base_case"
 
 export type WhatIfScenarioId = "base" | "upside" | "downside"
 
@@ -30,9 +32,42 @@ export interface ReportConfig {
   generatedBy: string
   generatedAt: string
   versionHash: string
+  agentRequest?: AgentAnalyzeRequest
+  agentResponse?: AgentAnalyzeResponse
+}
+
+export interface AgentAnalyzeContext {
+  current_date: boolean
+  spot_price: boolean
+  warehouse_fill_pct: number | null
+  related_news: boolean
+  source_reliability: boolean
+}
+
+export interface AgentAnalyzeRequest {
+  material: CommodityId
+  horizon_days: number
+  horizon_label: ReportHorizon
+  priority_profile: PriorityProfile
+  requested_at: string
+  context: AgentAnalyzeContext
+  include_market_drivers: boolean
+  analysis_type: AnalysisType
+}
+
+export interface AgentAnalyzeResponse {
+  answer: string
+  tool_calls: Record<string, unknown>[]
 }
 
 const STORAGE_PREFIX = "cales:report:"
+
+const HORIZON_DAYS: Record<ReportHorizon, number> = {
+  "1M": 30,
+  "3M": 90,
+  "6M": 180,
+  "12M": 365,
+}
 
 const EVENT_COPY: Record<CommodityId, ReportConfig["countdownEvent"]> = {
   aluminium: {
@@ -138,6 +173,29 @@ export function buildReportConfig({
     generatedBy: "Marc Vendrell",
     generatedAt,
     versionHash: versionHash(`${reportId}:${c.id}:${generatedAt}:${factors.join(",")}`),
+  }
+}
+
+export function buildAgentAnalyzeRequest(
+  c: Commodity,
+  config: ReportConfig,
+  priorityProfile: PriorityProfile = "balanced",
+): AgentAnalyzeRequest {
+  return {
+    material: c.id,
+    horizon_days: HORIZON_DAYS[config.horizon],
+    horizon_label: config.horizon,
+    priority_profile: priorityProfile,
+    requested_at: config.generatedAt,
+    context: {
+      current_date: config.contextFactors.currentDate,
+      spot_price: config.contextFactors.spotPrice,
+      warehouse_fill_pct: config.contextFactors.warehouse ? c.warehouseFillPct ?? null : null,
+      related_news: config.contextFactors.recentNews,
+      source_reliability: config.contextFactors.sourceReliability,
+    },
+    include_market_drivers: config.factors.length > 0,
+    analysis_type: "base_case",
   }
 }
 

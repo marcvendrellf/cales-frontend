@@ -11,11 +11,12 @@ import {
   TrendingUp,
 } from "lucide-react"
 import { toast } from "sonner"
+import { api } from "@/api/client"
 import { Card } from "@/components/ui/card"
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient"
 import { ReportGeneratingSkeleton } from "@/components/common/PageSkeletons"
 import { fmtDate } from "@/lib/format"
-import { buildReportConfig, saveReportConfig } from "@/lib/report-config"
+import { buildAgentAnalyzeRequest, buildReportConfig, saveReportConfig } from "@/lib/report-config"
 import { cn } from "@/lib/utils"
 import type { Commodity } from "@/types"
 import type { ReportContextKey as ContextKey } from "@/lib/report-config"
@@ -101,10 +102,11 @@ export function ReportBuilder({ c }: { c: Commodity }) {
 
   const canGenerate = status !== "generating"
 
-  function generate() {
+  async function generate() {
     if (!canGenerate) return
     setStatus("generating")
-    window.setTimeout(() => {
+
+    try {
       const config = buildReportConfig({
         c,
         factors: useDrivers ? c.drivers.map((d) => d.id) : [],
@@ -112,10 +114,17 @@ export function ReportBuilder({ c }: { c: Commodity }) {
         news: Array.from(news),
         horizon: DEFAULT_HORIZON,
       })
-      saveReportConfig(config)
-      toast.success("Report generated", { description: c.name })
+      const agentRequest = buildAgentAnalyzeRequest(c, config)
+      const agentResponse = await api.analyzeReport(agentRequest)
+
+      saveReportConfig({ ...config, agentRequest, agentResponse })
+      toast.success("Report generated", { description: `${c.name} analysis sent to the agent` })
       navigate(`/c/${c.id}/reports/${config.reportId}`)
-    }, 1400)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unknown error"
+      toast.error("Agent request failed", { description: message })
+      setStatus("idle")
+    }
   }
 
   return (

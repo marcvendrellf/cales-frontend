@@ -1,10 +1,12 @@
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import Lenis from "lenis"
 import { QRCodeSVG } from "qrcode.react"
 import {
   ArrowLeft,
   CalendarClock,
+  ChevronDown,
+  ChevronUp,
   ClipboardCheck,
   Copy,
   ExternalLink,
@@ -73,11 +75,18 @@ const actionArc: Record<Action, string> = {
 const actionFromScore = (score: number): Action =>
   score >= 72 ? "buy" : score >= 62 ? "hedge" : score >= 46 ? "monitor" : "wait"
 
+const REPORT_CHAPTER_SELECTOR = ".report-chapter"
+const easeInOutCubic = (time: number) =>
+  time < 0.5 ? 4 * time * time * time : 1 - Math.pow(-2 * time + 2, 3) / 2
+
 function useLenisScroll() {
+  const lenisRef = useRef<Lenis | null>(null)
+
   useEffect(() => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return
 
     const lenis = new Lenis({ lerp: 0.08, smoothWheel: true })
+    lenisRef.current = lenis
     let frame = 0
     const raf = (time: number) => {
       lenis.raf(time)
@@ -88,8 +97,108 @@ function useLenisScroll() {
     return () => {
       cancelAnimationFrame(frame)
       lenis.destroy()
+      lenisRef.current = null
     }
   }, [])
+
+  return lenisRef
+}
+
+function reportChapters() {
+  return Array.from(document.querySelectorAll<HTMLElement>(REPORT_CHAPTER_SELECTOR))
+}
+
+function activeReportChapterIndex(chapters = reportChapters()) {
+  const viewportCenter = window.innerHeight / 2
+  return chapters.reduce((bestIndex, chapter, index) => {
+    const best = chapters[bestIndex]
+    if (!best) return index
+    const currentRect = chapter.getBoundingClientRect()
+    const bestRect = best.getBoundingClientRect()
+    const currentDistance = Math.abs(currentRect.top + currentRect.height / 2 - viewportCenter)
+    const bestDistance = Math.abs(bestRect.top + bestRect.height / 2 - viewportCenter)
+    return currentDistance < bestDistance ? index : bestIndex
+  }, 0)
+}
+
+function useReportSectionNavigation(enabled: boolean, lenisRef: { current: Lenis | null }) {
+  const [activeIndex, setActiveIndex] = useState(0)
+  const [sectionCount, setSectionCount] = useState(0)
+
+  useEffect(() => {
+    let frame = 0
+    const updateActiveSection = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const chapters = reportChapters()
+        setSectionCount(chapters.length)
+        if (chapters.length > 0) {
+          setActiveIndex(activeReportChapterIndex(chapters))
+        }
+      })
+    }
+
+    updateActiveSection()
+    window.addEventListener("scroll", updateActiveSection, { passive: true })
+    window.addEventListener("resize", updateActiveSection)
+
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", updateActiveSection)
+      window.removeEventListener("resize", updateActiveSection)
+    }
+  }, [])
+
+  const scrollToSection = useCallback((index: number) => {
+    const chapters = reportChapters()
+    if (chapters.length === 0) return
+    const nextIndex = Math.max(0, Math.min(chapters.length - 1, index))
+    setActiveIndex(nextIndex)
+    const target = chapters[nextIndex]
+    if (lenisRef.current) {
+      lenisRef.current.scrollTo(target, {
+        duration: 1.25,
+        lock: true,
+        easing: easeInOutCubic,
+      })
+    } else {
+      target.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+  }, [lenisRef])
+
+  const goToPreviousSection = useCallback(() => scrollToSection(activeReportChapterIndex() - 1), [scrollToSection])
+  const goToNextSection = useCallback(() => scrollToSection(activeReportChapterIndex() + 1), [scrollToSection])
+
+  useEffect(() => {
+    if (!enabled) return
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey || event.ctrlKey || event.metaKey) return
+      const target = event.target as HTMLElement | null
+      const tagName = target?.tagName.toLowerCase()
+      if (tagName === "input" || tagName === "textarea" || tagName === "select" || target?.isContentEditable) return
+
+      const key = event.key.toLowerCase()
+      if (key === "p") {
+        event.preventDefault()
+        goToPreviousSection()
+      }
+      if (key === "n") {
+        event.preventDefault()
+        goToNextSection()
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [enabled, goToNextSection, goToPreviousSection])
+
+  return {
+    activeIndex,
+    sectionCount,
+    goToPreviousSection,
+    goToNextSection,
+  }
 }
 
 function daysUntil(date: string) {
@@ -156,6 +265,54 @@ function Chapter({
         <div className="mt-8">{children}</div>
       </div>
     </section>
+  )
+}
+
+function SectionNavigation({
+  activeIndex,
+  sectionCount,
+  onPrevious,
+  onNext,
+}: {
+  activeIndex: number
+  sectionCount: number
+  onPrevious: () => void
+  onNext: () => void
+}) {
+  if (sectionCount <= 1) return null
+
+  const canGoPrevious = activeIndex > 0
+  const canGoNext = activeIndex < sectionCount - 1
+
+  return (
+    <div className="pointer-events-none fixed bottom-5 right-5 z-40 flex items-center gap-2 sm:bottom-6 sm:right-8">
+      <div className="pointer-events-auto hidden rounded-md border border-border/70 bg-card/75 px-3 py-2 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground shadow-sm backdrop-blur-md sm:block">
+        {String(activeIndex + 1).padStart(2, "0")}/{String(sectionCount).padStart(2, "0")}
+      </div>
+      <div className="pointer-events-auto flex overflow-hidden rounded-md border border-border/70 bg-card/75 shadow-sm backdrop-blur-md">
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={!canGoPrevious}
+          className="inline-flex h-11 w-12 items-center justify-center text-foreground transition hover:bg-foreground/[0.06] disabled:pointer-events-none disabled:opacity-35"
+          aria-label="Previous report section"
+          title="Previous section (P)"
+        >
+          <ChevronUp className="size-5" strokeWidth={2.5} />
+        </button>
+        <div className="w-px bg-border/70" />
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!canGoNext}
+          className="inline-flex h-11 w-12 items-center justify-center text-foreground transition hover:bg-foreground/[0.06] disabled:pointer-events-none disabled:opacity-35"
+          aria-label="Next report section"
+          title="Next section (N)"
+        >
+          <ChevronDown className="size-5" strokeWidth={2.5} />
+        </button>
+      </div>
+    </div>
   )
 }
 
@@ -228,16 +385,10 @@ function ExplainPanel({
 function Cover({ c, config, publicMode }: { c: Commodity; config: ReportConfig; publicMode: boolean }) {
   return (
     <section className="report-chapter relative flex min-h-screen snap-start flex-col justify-center overflow-hidden px-5 py-16 sm:px-8 lg:px-14">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_78%_18%,rgba(116,199,154,0.18),transparent_26%),radial-gradient(circle_at_12%_82%,rgba(224,179,65,0.11),transparent_22%)]" />
       <div className="relative mx-auto w-full max-w-7xl">
-        <div className="flex items-center justify-end gap-4">
-          {publicMode ? (
-            <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Public jury pack</span>
-          ) : null}
-          <span className="rounded-sm border border-border bg-card/60 px-2.5 py-1 font-mono text-xs text-muted-foreground">
-            {config.reportId}
-          </span>
-        </div>
+        {publicMode ? (
+          <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Public jury pack</span>
+        ) : null}
 
         <div className="mt-20 max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-700">
           <p className="font-mono text-xs uppercase tracking-[0.28em] text-cala">
@@ -270,7 +421,7 @@ function Summary({
   const summary = splitSummary(rec.summary)
 
   return (
-    <Chapter eyebrow="01 · Summary" title="The call, the clock, and the risk window." icon={Gauge}>
+    <Chapter eyebrow="01 · Summary" title="Recommendation summary and timing risk." icon={Gauge}>
       <div className="grid items-center gap-8 lg:grid-cols-[420px_1fr]">
         <Card className="items-center justify-center border-border/70 bg-card/45 p-8">
           <ScoreGauge score={rec.score} size={300} colorVar={actionArc[rec.action]} />
@@ -315,7 +466,7 @@ function Summary({
 
 function DecisionStrip({ c, config }: { c: Commodity; config: ReportConfig }) {
   return (
-    <Chapter eyebrow="02 · Decision" title="Decision strip. No overloaded dashboard." icon={Target}>
+    <Chapter eyebrow="02 · Decision" title="Recommended action, confidence, horizon, and spot price." icon={Target}>
       <div className="grid gap-4 md:grid-cols-4">
         <Card className="border-border/70 bg-card/45 p-6 md:col-span-1">
           <p className="text-xs uppercase tracking-wide text-muted-foreground">Action</p>
@@ -394,7 +545,7 @@ function PriceWhatIf({
   const directionColor = c.change30d >= 0 ? "var(--positive)" : "var(--negative)"
 
   return (
-    <Chapter eyebrow="03 · Price + What-if" title="Forked futures from today." icon={LineChartIcon}>
+    <Chapter eyebrow="03 · Price + Scenario" title="Price outlook under the selected scenario." icon={LineChartIcon}>
       <div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
         <Card className="h-[520px] border-border/70 bg-card/45 p-5">
           <ResponsiveContainer width="100%" height="100%">
@@ -477,7 +628,7 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
   const disagree = oneMonthAction !== sixMonthAction
 
   return (
-    <Chapter eyebrow="04 · Horizon comparison" title="One month and six months can disagree." icon={GitCompareArrows}>
+    <Chapter eyebrow="04 · Horizon comparison" title="Short-term versus six-month recommendation." icon={GitCompareArrows}>
       <div className="grid gap-5 lg:grid-cols-2">
         {[
           { label: "1M", change: c.change30d, action: oneMonthAction, confidence: Math.max(42, Math.round(c.recommendation.confidence * 100 - 8)), driver: top },
@@ -525,7 +676,7 @@ function MapChapter({
 }) {
   const points = REPORT_MAP_POINTS[c.id]
   return (
-    <Chapter eyebrow="05 · Map" title="Where the risk lives." icon={MapPin}>
+    <Chapter eyebrow="05 · Map" title="Geographic exposure and supply-chain risk points." icon={MapPin}>
       <ReportMaps c={c} />
       <div className="mt-5 grid gap-3 md:grid-cols-3">
         {points.map((point, index) => {
@@ -565,7 +716,7 @@ function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
   const drivers = selectedDrivers(c, config)
   const max = Math.max(...drivers.map((driver) => driver.weight), 0.01)
   return (
-    <Chapter eyebrow="06 · Drivers" title="Pressure bars with source links." icon={TrendingUp}>
+    <Chapter eyebrow="06 · Drivers" title="Main upward and downward price drivers." icon={TrendingUp}>
       <div className="grid gap-5 lg:grid-cols-2">
         {(["up", "down"] as const).map((direction) => (
           <Card key={direction} className="border-border/70 bg-card/45 p-6">
@@ -620,7 +771,7 @@ function NewsChapter({
     .filter((item) => selected.has(item.id))
     .sort((a, b) => Math.abs(newsImpact(c, b).score) - Math.abs(newsImpact(c, a).score))
   return (
-    <Chapter eyebrow="07 · Relevant news" title="The evidence stack, ranked by impact." icon={Newspaper}>
+    <Chapter eyebrow="07 · Relevant news" title="Evidence ranked by estimated recommendation impact." icon={Newspaper}>
       <div className="space-y-3">
         {items.map((item) => {
           const impact = newsImpact(c, item)
@@ -661,42 +812,11 @@ function NewsChapter({
   )
 }
 
-function QRChapter({ config }: { config: ReportConfig }) {
-  const url = reportUrl(config.reportId)
-  return (
-    <Chapter eyebrow="08 · QR" title="Open the jury pack on your phone." icon={QrCode}>
-      <div className="grid items-center gap-8 lg:grid-cols-[360px_1fr]">
-        <Card className="items-center border-border/70 bg-card/45 p-8">
-          <div className="rounded-lg bg-white p-4">
-            <QRCodeSVG value={url} size={260} bgColor="#ffffff" fgColor="#211d1a" />
-          </div>
-        </Card>
-        <div>
-          <p className="max-w-2xl text-2xl leading-9 text-foreground/90">
-            Scan to open the jury pack on your phone.
-          </p>
-          <div className="mt-6 flex flex-wrap gap-3">
-            <Button variant="outline" className="gap-2" onClick={() => navigator.clipboard.writeText(url)}>
-              <Copy className="size-4" />
-              Copy public URL
-            </Button>
-            <a href={url} target="_blank" rel="noopener noreferrer" className="inline-flex h-9 items-center gap-2 rounded-md border border-border px-3 text-sm hover:bg-foreground/[0.04]">
-              <ExternalLink className="size-4" />
-              Open public report
-            </a>
-          </div>
-          <p className="mt-4 break-all font-mono text-xs text-muted-foreground">{url}</p>
-        </div>
-      </div>
-    </Chapter>
-  )
-}
-
 function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
   const drivers = selectedDrivers(c, config)
   const sources = Array.from(new Set(c.evidence.map((item) => item.source).concat("Cala")))
   return (
-    <Chapter eyebrow="09 · Audit" title="Decision record." icon={ClipboardCheck}>
+    <Chapter eyebrow="08 · Audit" title="Report inputs, sources, and audit trail." icon={ClipboardCheck}>
       <Card className="border-border/70 bg-card/45 p-6">
         <dl className="grid gap-5 md:grid-cols-3">
           <div>
@@ -798,27 +918,36 @@ function CinematicReport({
   const location = useLocation()
   const [explain, setExplain] = useState<ExplainPayload | null>(null)
   const [qrOpen, setQrOpen] = useState(false)
-  useLenisScroll()
+  const lenisRef = useLenisScroll()
+  const sectionNavigation = useReportSectionNavigation(!qrOpen && !explain, lenisRef)
 
   const goBack = () => {
-    if (location.key !== "default") {
-      navigate(-1)
+    const run = () => {
+      if (location.key !== "default") {
+        navigate(-1)
+      } else {
+        navigate(`/c/${c.id}/reports`)
+      }
+    }
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => unknown }
+    if (doc.startViewTransition) {
+      doc.startViewTransition(run)
     } else {
-      navigate(`/c/${c.id}/reports`)
+      run()
     }
   }
 
   return (
-    <div className="report-theme min-h-screen snap-y snap-mandatory overflow-x-hidden bg-background text-foreground">
-      <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-4 sm:px-8 lg:px-14">
+    <div className="report-theme report-enter min-h-screen snap-y snap-mandatory overflow-x-hidden bg-background text-foreground">
+      <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-5 sm:px-8 lg:px-14">
         {!publicMode ? (
           <button
             type="button"
             onClick={goBack}
-            className="pointer-events-auto inline-flex size-10 items-center justify-center rounded-full border border-border/70 bg-card/60 text-muted-foreground shadow-sm backdrop-blur-md transition hover:bg-card hover:text-foreground"
+            className="pointer-events-auto inline-flex items-center gap-2 text-foreground transition hover:opacity-60"
           >
-            <ArrowLeft className="size-5" />
-            <span className="sr-only">Back</span>
+            <ArrowLeft className="size-5" strokeWidth={2.75} />
+            <span className="text-sm font-bold uppercase tracking-[0.12em]">Back</span>
           </button>
         ) : (
           <span />
@@ -826,10 +955,10 @@ function CinematicReport({
         <button
           type="button"
           onClick={() => setQrOpen(true)}
-          className="pointer-events-auto inline-flex size-10 items-center justify-center rounded-full border border-border/70 bg-card/60 text-muted-foreground shadow-sm backdrop-blur-md transition hover:bg-card hover:text-foreground"
+          className="pointer-events-auto inline-flex items-center gap-2 text-foreground transition hover:opacity-60"
         >
-          <QrCode className="size-5" />
-          <span className="sr-only">Open QR code</span>
+          <span className="text-sm font-bold uppercase tracking-[0.12em]">Share</span>
+          <QrCode className="size-5" strokeWidth={2.75} />
         </button>
       </div>
 
@@ -841,10 +970,15 @@ function CinematicReport({
       <MapChapter c={c} onExplain={setExplain} />
       <DriversChapter c={c} config={config} />
       <NewsChapter c={c} config={config} onExplain={setExplain} />
-      <QRChapter config={config} />
       <FooterChapter c={c} config={config} />
       <ExplainPanel payload={explain} onClose={() => setExplain(null)} />
       <QRDialog url={reportUrl(config.reportId)} open={qrOpen} onOpenChange={setQrOpen} />
+      <SectionNavigation
+        activeIndex={sectionNavigation.activeIndex}
+        sectionCount={sectionNavigation.sectionCount}
+        onPrevious={sectionNavigation.goToPreviousSection}
+        onNext={sectionNavigation.goToNextSection}
+      />
     </div>
   )
 }
