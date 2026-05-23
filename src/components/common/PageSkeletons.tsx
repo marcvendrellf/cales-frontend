@@ -138,32 +138,58 @@ export function CommodityDetailSkeleton() {
         ))}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <div className="space-y-6 lg:col-span-2">
+      <div className="space-y-6">
+        <Card className="p-5">
+          <div className="mb-4">
+            <Skeleton className="h-4 w-28" />
+          </div>
+          <Skeleton className="h-[340px] w-full rounded-lg" />
+        </Card>
+        <Card className="p-5">
+          <Skeleton className="h-4 w-40" />
+          <Skeleton className="mt-2 h-3 w-64 max-w-full" />
+          <div className="mt-4 grid gap-6 sm:grid-cols-2">
+            {Array.from({ length: 2 }).map((_, col) => (
+              <div key={col} className="space-y-3">
+                <Skeleton className="h-3 w-28" />
+                {Array.from({ length: 3 }).map((_, row) => (
+                  <div key={row} className="space-y-2 py-1">
+                    <div className="flex justify-between gap-3">
+                      <Skeleton className="h-4 w-3/5" />
+                      <Skeleton className="h-3 w-8" />
+                    </div>
+                    <Skeleton className="h-1.5 w-full rounded-full" />
+                    <Skeleton className="h-3 w-full" />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        </Card>
+        <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
           <Card className="p-5">
-            <div className="mb-4 flex justify-between">
-              <Skeleton className="h-4 w-28" />
-              <Skeleton className="h-3 w-20" />
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="mt-2 h-3 w-64 max-w-full" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-3">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border border-border/60 p-4">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="mt-3 h-8 w-20" />
+                  <Line className="mt-2 w-full" />
+                  <Line className="w-4/5" />
+                </div>
+              ))}
             </div>
-            <Skeleton className="h-[340px] w-full rounded-lg" />
           </Card>
           <Card className="p-5">
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="mt-2 h-3 w-64" />
-            <div className="mt-4 grid gap-6 sm:grid-cols-2">
-              {Array.from({ length: 2 }).map((_, col) => (
-                <div key={col} className="space-y-3">
-                  <Skeleton className="h-3 w-28" />
-                  {Array.from({ length: 3 }).map((_, row) => (
-                    <div key={row} className="space-y-2 py-1">
-                      <div className="flex justify-between">
-                        <Skeleton className="h-4 w-3/5" />
-                        <Skeleton className="h-3 w-8" />
-                      </div>
-                      <Skeleton className="h-1.5 w-full rounded-full" />
-                      <Skeleton className="h-3 w-full" />
-                    </div>
-                  ))}
+            <Skeleton className="h-4 w-32" />
+            <Skeleton className="mt-2 h-3 w-56 max-w-full" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="rounded-lg border border-border/60 p-4">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="mt-3 h-8 w-20" />
+                  <Line className="mt-2 w-full" />
                 </div>
               ))}
             </div>

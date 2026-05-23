@@ -80,13 +80,13 @@ export function ReportBuilder({ c }: { c: Commodity }) {
     { key: "currentDate", label: "Current date", hint: "Anchor the report to today's market window", available: true },
     { key: "spotPrice", label: "Current spot price", hint: `${c.spot} ${c.unit} and short-term movement`, available: true },
     { key: "warehouse", label: "Warehouse position", hint: c.warehouseFillPct != null ? `${c.warehouseFillPct}% current fill` : "Not available for this element", available: c.warehouseFillPct != null },
-    { key: "recentNews", label: "Recent news", hint: `${c.evidence.length} available signals and source notes`, available: c.evidence.length > 0 },
+    { key: "recentNews", label: "Related news", hint: `${c.evidence.length} market signals and source notes`, available: c.evidence.length > 0 },
     { key: "sourceReliability", label: "Source reliability", hint: "Weight high-confidence sources more strongly", available: c.evidence.length > 0 },
   ]
   const sectionDefs: SectionDef[] = [
     { key: "price", label: "Market context", hint: "Current price, date, trend and recent movement", available: true },
     { key: "drivers", label: "Factor analysis", hint: "Selected supply, demand, weather or cost drivers", available: true },
-    { key: "evidence", label: "News and source notes", hint: `${c.evidence.length} items with impact weighting`, available: c.evidence.length > 0 },
+    { key: "evidence", label: "Related news", hint: `${c.evidence.length} items with impact weighting`, available: c.evidence.length > 0 },
     { key: "recommendation", label: "Decision and confidence", hint: "Procurement action, confidence and rationale", available: true },
   ]
 
@@ -114,7 +114,11 @@ export function ReportBuilder({ c }: { c: Commodity }) {
   const toggleFactor = (id: string) =>
     setFactors((prev) => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
       return next
     })
 
@@ -432,7 +436,7 @@ function GeneratedReportView({ c, report }: { c: Commodity; report: GeneratedRep
       {report.sections.evidence && c.evidence.length > 0 && (
         <section className="mt-5">
           <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            News impact and sources
+            Related news
           </h3>
           <ul className="mt-2 space-y-2">
             {c.evidence.map((e) => (

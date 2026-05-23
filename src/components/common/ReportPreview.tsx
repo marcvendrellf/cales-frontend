@@ -16,7 +16,9 @@ import {
   monthlyReturnStyle,
   priceDirectionHex,
 } from "@/lib/chart-colors"
-import { fmtDate, fmtPct, actionColor, reliabilityLabel } from "@/lib/format"
+import { DriversCall } from "@/components/common/DriversCall"
+import { RelatedNews } from "@/components/common/RelatedNews"
+import { fmtDate, fmtPct, actionColor } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Action, Commodity, PricePoint } from "@/types"
 
@@ -223,52 +225,6 @@ function DriverRadar({ c, accent }: { c: Commodity; accent: string }) {
   )
 }
 
-/* ─── Evidence panel ────────────────────────────────────────────── */
-
-const dotColor: Record<string, string> = {
-  high: "#22c55e",
-  medium: "#f59e0b",
-  low: "#f87171",
-}
-
-function EvidencePanel({ c }: { c: Commodity }) {
-  return (
-    <div className="space-y-3">
-      <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
-        Evidence & sources
-        <span className="ml-2 font-mono normal-case tracking-normal text-muted-foreground/60">
-          {c.evidence.length} cited
-        </span>
-      </p>
-      <div className="space-y-2">
-        {c.evidence.map(e => {
-          const isCala = e.source.toLowerCase().includes("cala")
-          return (
-            <div key={e.id} className="flex gap-3 rounded-lg border border-border/50 bg-background/30 p-3 transition-colors hover:border-border">
-              <div
-                className="mt-1.5 size-2 shrink-0 rounded-full"
-                style={{ background: dotColor[e.reliability] }}
-              />
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <span className={cn("text-xs font-semibold", isCala ? "text-cala" : "text-foreground/80")}>
-                    {e.source}
-                  </span>
-                  <span className="shrink-0 font-mono text-[10px] text-muted-foreground">
-                    {reliabilityLabel[e.reliability]} · {fmtDate(e.date)}
-                  </span>
-                </div>
-                <p className="mt-0.5 text-xs font-medium text-foreground/80">{e.title}</p>
-                <p className="mt-0.5 text-[11px] leading-relaxed text-muted-foreground">{e.excerpt}</p>
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
 /* ─── Main export ───────────────────────────────────────────────── */
 
 export function ReportPreview({ c }: { c: Commodity }) {
@@ -355,7 +311,11 @@ export function ReportPreview({ c }: { c: Commodity }) {
         <CalendarHeatmap series={c.series} />
       </Card>
 
-      {/* ── Monthly strip + radar / evidence ── */}
+      <Card className="p-5">
+        <DriversCall commodity={c} variant="report" />
+      </Card>
+
+      {/* ── Monthly strip + radar / news ── */}
       <div className="grid gap-5 lg:grid-cols-[1fr_320px]">
         <Card className="space-y-6 p-5">
           <MonthlyStrip series={c.series} />
@@ -365,7 +325,7 @@ export function ReportPreview({ c }: { c: Commodity }) {
         </Card>
 
         <Card className="p-5">
-          <EvidencePanel c={c} />
+          <RelatedNews items={c.evidence} drivers={c.drivers} variant="report" />
         </Card>
       </div>
 

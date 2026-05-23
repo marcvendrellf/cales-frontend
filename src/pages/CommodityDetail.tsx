@@ -1,156 +1,191 @@
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
-import { ExternalLink, FileText, Info, ListChecks, TrendingDown, TrendingUp } from "lucide-react"
+import { Activity, BarChart3, Database, FileText, Gauge, History, Info, ListChecks, Scale } from "lucide-react"
+import type { LucideIcon } from "lucide-react"
 import { useCommodity } from "@/api/hooks"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
 import { Card } from "@/components/ui/card"
 import { CommodityDetailSkeleton } from "@/components/common/PageSkeletons"
-import { Separator } from "@/components/ui/separator"
+import { DriversCall } from "@/components/common/DriversCall"
+import { RelatedNews } from "@/components/common/RelatedNews"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ReportBuilder } from "@/components/common/ReportBuilder"
 import { ReportList } from "@/components/common/ReportList"
 import { PriceChart } from "@/components/common/PriceChart"
 import { TrendArrow } from "@/components/common/TrendArrow"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
-import { fmtDate, reliabilityLabel } from "@/lib/format"
+import { fmtDate, fmtPct } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import type { Commodity, CommodityId, Driver, Evidence } from "@/types"
+import type { Commodity, CommodityId } from "@/types"
 
-const reliabilityStyle = {
-  high: "text-buy border-buy/30",
-  medium: "text-hedge border-hedge/30",
-  low: "text-monitor border-monitor/30",
-} as const
+function seriesChange(c: Commodity) {
+  const first = c.series[0]?.value
+  const last = c.series.at(-1)?.value
+  if (!first || !last) return 0
+  return ((last - first) / first) * 100
+}
 
-function DriverBar({ d, max }: { d: Driver; max: number }) {
-  const Icon = d.direction === "up" ? TrendingUp : TrendingDown
-  const color = d.direction === "up" ? "bg-positive" : "bg-negative"
-  const text = d.direction === "up" ? "text-positive" : "text-negative"
+function recentVolatility(c: Commodity) {
+  const tail = c.series.slice(-31)
+  if (tail.length < 2) return 0
+
+  const moves = tail.slice(1).map((point, index) => {
+    const previous = tail[index].value
+    return Math.abs(((point.value - previous) / previous) * 100)
+  })
+
+  return moves.reduce((sum, move) => sum + move, 0) / moves.length
+}
+
+function latestEvidenceDate(c: Commodity) {
+  return c.evidence.reduce<string | null>(
+    (latest, item) => (latest == null || item.date > latest ? item.date : latest),
+    null,
+  )
+}
+
+function GeneralIndicator({
+  icon: Icon,
+  label,
+  value,
+  detail,
+  tone = "default",
+}: {
+  icon: LucideIcon
+  label: string
+  value: string
+  detail: string
+  tone?: "default" | "positive" | "negative" | "cala"
+}) {
   return (
-    <div className="py-2.5">
-      <div className="flex items-center justify-between gap-3">
-        <span className="flex items-center gap-2 text-sm">
-          <Icon className={cn("size-4", text)} />
-          {d.label}
-        </span>
-        <span className="font-mono text-xs text-muted-foreground">
-          {Math.round(d.weight * 100)}%
-        </span>
+    <div className="rounded-lg border border-border/60 bg-background/35 p-4">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        <Icon className="size-3.5" />
+        {label}
       </div>
-      <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-secondary">
-        <div
-          className={cn("h-full rounded-full transition-all duration-700", color)}
-          style={{ width: `${(d.weight / max) * 100}%` }}
-        />
+      <div
+        className={cn(
+          "mt-3 font-mono text-2xl tabular-nums",
+          tone === "positive" && "text-positive",
+          tone === "negative" && "text-negative",
+          tone === "cala" && "text-cala",
+        )}
+      >
+        {value}
       </div>
-      <p className="mt-1.5 text-xs text-muted-foreground">
-        {d.category} · {d.rationale}
-      </p>
+      <p className="mt-1 text-xs leading-relaxed text-muted-foreground">{detail}</p>
     </div>
   )
 }
 
-function EvidenceRow({ e }: { e: Evidence }) {
-  const isCala = e.source.toLowerCase().includes("cala")
+function IndicatorSections({ c }: { c: Commodity }) {
+  const sixMonthChange = seriesChange(c)
+  const volatility = recentVolatility(c)
+  const upwardPressure = c.drivers
+    .filter((driver) => driver.direction === "up")
+    .reduce((sum, driver) => sum + driver.weight, 0)
+  const downwardPressure = c.drivers
+    .filter((driver) => driver.direction === "down")
+    .reduce((sum, driver) => sum + driver.weight, 0)
+  const highReliabilityCount = c.evidence.filter((item) => item.reliability === "high").length
+  const strongestAnalogue = [...c.history].sort((a, b) => b.similarity - a.similarity)[0]
+  const evidenceDate = latestEvidenceDate(c)
+
   return (
-    <div className="flex gap-3 py-3">
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "text-sm font-medium",
-              isCala && "text-cala",
-            )}
-          >
-            {e.source}
-          </span>
-          <span
-            className={cn(
-              "rounded-xs border px-1.5 py-px text-[10px] uppercase tracking-wide",
-              reliabilityStyle[e.reliability],
-            )}
-          >
-            {reliabilityLabel[e.reliability]}
-          </span>
-          <span className="ml-auto font-mono text-[11px] text-muted-foreground">
-            {fmtDate(e.date)}
-          </span>
+    <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+      <Card className="p-5">
+        <div>
+          <h2 className="text-sm font-medium">Market indicators</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Fast read on momentum, volatility and physical coverage.
+          </p>
         </div>
-        <p className="mt-1 text-sm text-foreground/90">{e.title}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">{e.excerpt}</p>
-      </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <GeneralIndicator
+            icon={BarChart3}
+            label="6M move"
+            value={fmtPct(sixMonthChange)}
+            detail="Total price move across the loaded six-month series."
+            tone={sixMonthChange > 0 ? "positive" : sixMonthChange < 0 ? "negative" : "default"}
+          />
+          <GeneralIndicator
+            icon={Activity}
+            label="30D volatility"
+            value={`${volatility.toFixed(1)}%`}
+            detail="Average absolute daily move over the latest month."
+          />
+          <GeneralIndicator
+            icon={Database}
+            label="Warehouse"
+            value={c.warehouseFillPct != null ? `${c.warehouseFillPct}%` : "N/A"}
+            detail={
+              c.warehouseFillPct != null
+                ? "Current fill level for storable exposure."
+                : "No warehouse fill signal for this market."
+            }
+            tone={c.warehouseFillPct != null && c.warehouseFillPct < 40 ? "negative" : "default"}
+          />
+        </div>
+      </Card>
+
+      <Card className="p-5">
+        <div>
+          <h2 className="text-sm font-medium">Signal indicators</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            How the current call is supported by drivers and sources.
+          </p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+          <GeneralIndicator
+            icon={Scale}
+            label="Driver balance"
+            value={`${Math.round(upwardPressure * 100)} / ${Math.round(downwardPressure * 100)}`}
+            detail="Upward vs. downward weighted pressure in the current call."
+            tone={upwardPressure > downwardPressure ? "positive" : "negative"}
+          />
+          <GeneralIndicator
+            icon={Gauge}
+            label="Source strength"
+            value={`${highReliabilityCount}/${c.evidence.length}`}
+            detail={evidenceDate ? `High-reliability items. Latest update: ${fmtDate(evidenceDate)}.` : "No cited source updates."}
+            tone="cala"
+          />
+          {strongestAnalogue ? (
+            <GeneralIndicator
+              icon={History}
+              label="Analogue match"
+              value={`${Math.round(strongestAnalogue.similarity * 100)}%`}
+              detail={`${strongestAnalogue.title} (${strongestAnalogue.period}).`}
+            />
+          ) : null}
+        </div>
+      </Card>
     </div>
   )
 }
 
 function GeneralInfo({ c }: { c: Commodity }) {
-  const maxWeight = Math.max(...c.drivers.map((d) => d.weight))
-  const up = c.drivers.filter((d) => d.direction === "up")
-  const down = c.drivers.filter((d) => d.direction === "down")
   const sparkColor =
     c.trend === "up" ? "positive" : c.trend === "down" ? "negative" : "muted-foreground"
 
   return (
-    <div className="grid gap-6 lg:grid-cols-3">
-        {/* Left column */}
-        <div className="space-y-6 lg:col-span-2">
-          <Card className="p-5">
-            <div className="mb-2 flex items-center justify-between">
-              <h2 className="text-sm font-medium">Price · 6 months</h2>
-              <span className="font-mono text-[11px] text-cala">Cala.ai feed</span>
-            </div>
-            <PriceChart data={c.series} color={sparkColor} priceLine={c.spot} unit={c.unit} />
-          </Card>
-
-          <Card className="p-5">
-            <h2 className="text-sm font-medium">What's driving the call</h2>
-            <p className="mt-0.5 text-xs text-muted-foreground">
-              Net of forces pushing price up vs. down — each tagged to a signal category.
-            </p>
-            <div className="mt-4 grid gap-x-8 sm:grid-cols-2">
-              <div>
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-positive">
-                  <TrendingUp className="size-3.5" /> Upward pressure
-                </p>
-                <Separator className="mb-1" />
-                {up.map((d) => (
-                  <DriverBar key={d.id} d={d} max={maxWeight} />
-                ))}
-              </div>
-              <div>
-                <p className="mb-1 flex items-center gap-1.5 text-xs font-medium text-negative">
-                  <TrendingDown className="size-3.5" /> Downward pressure
-                </p>
-                <Separator className="mb-1" />
-                {down.map((d) => (
-                  <DriverBar key={d.id} d={d} max={maxWeight} />
-                ))}
-              </div>
-            </div>
-          </Card>
-
+    <div className="space-y-6">
+      <Card className="p-5">
+        <div className="mb-2">
+          <h2 className="text-sm font-medium">Price · 6 months</h2>
         </div>
+        <PriceChart data={c.series} color={sparkColor} priceLine={c.spot} unit={c.unit} />
+      </Card>
 
-        {/* Right column */}
-        <div className="space-y-6">
-          <Card className="p-5">
-            <div className="flex items-center justify-between">
-              <h2 className="text-sm font-medium">Evidence</h2>
-              <span className="font-mono text-[11px] text-muted-foreground">
-                {c.evidence.length} sources
-              </span>
-            </div>
-            <div className="mt-1 divide-y divide-border">
-              {c.evidence.map((e) => (
-                <EvidenceRow key={e.id} e={e} />
-              ))}
-            </div>
-            <p className="mt-3 flex items-center gap-1 text-[11px] text-muted-foreground">
-              <ExternalLink className="size-3" />
-              Provenance documented per source — see the wiki.
-            </p>
-          </Card>
-        </div>
-      </div>
+      <Card className="p-5">
+        <DriversCall commodity={c} />
+      </Card>
+
+      <IndicatorSections c={c} />
+
+      <Card className="p-5">
+        <RelatedNews items={c.evidence} drivers={c.drivers} />
+      </Card>
+    </div>
   )
 }
 
@@ -176,13 +211,13 @@ function Loaded({ c }: { c: Commodity }) {
           ]
         : [
             { label: "Reports", onClick: () => navigate("/reports") },
-            { label: c.name },
+            { label: c.name, onClick: () => navigate(`/c/${c.id}`) },
+            { label: "General information" },
           ],
   )
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex items-start gap-4">
           <div>
