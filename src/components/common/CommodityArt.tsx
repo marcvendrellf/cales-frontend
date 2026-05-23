@@ -58,8 +58,6 @@ export function BarleyArt({ className }: ArtProps) {
       <g {...S}>
         <path d="M48 86 V40" stroke="#e0b341" />
         <path d="M48 44 V26" stroke="#e0b341" strokeWidth={2.5} />
-        <path d="M48 44 L38 28" stroke="#e0b341" strokeWidth={2.5} />
-        <path d="M48 44 L58 28" stroke="#e0b341" strokeWidth={2.5} />
         <ellipse cx="41" cy="50" rx="6" ry="3.2" fill="#79cfa6" transform="rotate(-38 41 50)" />
         <ellipse cx="55" cy="50" rx="6" ry="3.2" fill="#79cfa6" transform="rotate(38 55 50)" />
         <ellipse cx="41" cy="60" rx="6" ry="3.2" fill="#79cfa6" transform="rotate(-38 41 60)" />

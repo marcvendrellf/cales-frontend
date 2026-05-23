@@ -1,133 +1,248 @@
+import { useMemo } from "react"
 import { Link } from "react-router-dom"
-import { Boxes, Gauge, PackageCheck } from "lucide-react"
-import { useCommodities } from "@/api/hooks"
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+} from "recharts"
+import { useCommodities, useSignals } from "@/api/hooks"
+import { WarehouseChart } from "@/components/common/WarehouseChart"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
-import { CommodityArt } from "@/components/common/CommodityArt"
+import { Card, CardContent } from "@/components/ui/card"
+import {
+  ChartContainer,
+  ChartLegend,
+  ChartLegendContent,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart"
 import { Skeleton } from "@/components/ui/skeleton"
+import { impactColor, relativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import type { Commodity } from "@/types"
+import type { Commodity, MarketSignal } from "@/types"
 
-function fillStatus(fill: number) {
-  if (fill >= 85) return { label: "Critical", className: "text-negative" }
-  if (fill >= 65) return { label: "High", className: "text-hedge" }
-  if (fill >= 35) return { label: "Normal", className: "text-buy" }
-  return { label: "Low", className: "text-monitor" }
+const chartConfig = {
+  aluminium: {
+    label: "Aluminium",
+    color: "var(--chart-1)",
+  },
+  pet: {
+    label: "PET",
+    color: "var(--chart-2)",
+  },
+  energy: {
+    label: "Energy",
+    color: "var(--chart-3)",
+  },
+  barley: {
+    label: "Barley",
+    color: "var(--chart-4)",
+  },
+} satisfies ChartConfig
+
+function makeRelativeTrendData(commodities: Commodity[]) {
+  const firstSeries = commodities[0]?.series ?? []
+  if (!firstSeries.length) return []
+
+  const sampledIndexes = Array.from({ length: 7 }, (_, index) =>
+    Math.round((index / 6) * (firstSeries.length - 1)),
+  )
+
+  return sampledIndexes.map((seriesIndex, pointIndex) => {
+    const point: Record<string, string | number> = {
+      month: firstSeries[seriesIndex]?.date ?? "",
+    }
+
+    commodities.forEach((commodity) => {
+      const commodityIndex = Math.round(
+        (pointIndex / 6) * Math.max(commodity.series.length - 1, 0),
+      )
+      const ath = Math.max(...commodity.series.map((entry) => entry.value))
+      const value = commodity.series[commodityIndex]?.value
+
+      if (ath && value != null) {
+        point[commodity.id] = Math.round((value / ath) * 1000) / 10
+      }
+    })
+
+    return point
+  })
 }
 
-function WarehouseRow({ commodity }: { commodity: Commodity }) {
-  const status = fillStatus(commodity.warehouseFillPct)
+function NewsItem({ signal }: { signal: MarketSignal }) {
+  const dot =
+    signal.impact === "bullish"
+      ? "bg-positive"
+      : signal.impact === "bearish"
+        ? "bg-negative"
+        : "bg-muted-foreground"
+  const isCommodity = signal.commodityId !== "macro"
 
   return (
-    <Link
-      to={`/c/${commodity.id}`}
-      className="grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border/70 px-4 py-3 transition-colors last:border-b-0 hover:bg-card/65 sm:px-5"
-    >
-      <CommodityArt id={commodity.id} className="size-10" />
-      <div className="min-w-0">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="truncate text-sm font-medium">{commodity.name}</h2>
-          <span className={cn("text-xs", status.className)}>{status.label}</span>
-        </div>
-        <div className="mt-2 h-2 overflow-hidden rounded-full bg-secondary">
-          <div
-            className="h-full rounded-full bg-primary transition-all duration-700"
-            style={{ width: `${commodity.warehouseFillPct}%` }}
-          />
-        </div>
+    <article className="border-b border-border/70 px-4 py-4 last:border-b-0 sm:px-5">
+      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+        <span className={cn("size-1.5 rounded-full", dot)} />
+        <span className="font-mono uppercase">{signal.commodityId}</span>
+        <span>·</span>
+        <span>{relativeTime(signal.time)}</span>
+        <span className={cn("ml-auto font-mono uppercase", impactColor[signal.impact])}>
+          {signal.impact}
+        </span>
       </div>
-      <div className="w-14 text-right font-mono text-lg tabular-nums">
-        {commodity.warehouseFillPct}%
+      <h2 className="mt-2 text-sm font-medium text-foreground">{signal.headline}</h2>
+      <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{signal.detail}</p>
+      <div className="mt-2 flex items-center justify-between gap-3 text-[11px] text-muted-foreground">
+        <span>{signal.source}</span>
+        {isCommodity ? (
+          <Link to={`/c/${signal.commodityId}`} className="font-medium text-foreground/80">
+            View element
+          </Link>
+        ) : null}
       </div>
-    </Link>
+    </article>
   )
 }
 
 export function Overview() {
   const { data, isLoading } = useCommodities()
+  const { data: signals, isLoading: signalsLoading } = useSignals()
   useBreadcrumbs([{ label: "Overview" }])
 
-  const averageFill =
-    data && data.length > 0
-      ? Math.round(
-          data.reduce((total, commodity) => total + commodity.warehouseFillPct, 0) /
-            data.length,
-        )
-      : 0
-  const highFillCount =
-    data?.filter((commodity) => commodity.warehouseFillPct >= 65).length ?? 0
+  const relativeTrendData = useMemo(() => makeRelativeTrendData(data ?? []), [data])
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-wrap items-end justify-between gap-4">
+      <section>
         <div>
           <h1 className="display-serif text-4xl sm:text-5xl">
             Hello, <span className="text-muted-foreground">Marc</span>
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Current warehouse fill level for each element.
+            Current price movement and market news for tracked elements.
           </p>
         </div>
-        <Link
-          to="/elements"
-          className="rounded-md border border-border bg-card px-4 py-2 text-sm transition-colors hover:border-foreground/25"
-        >
-          Open Elements
-        </Link>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-3">
-        <div className="rounded-lg border border-border/70 bg-card/55 p-5">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Gauge className="size-4" />
-            Average fill
-          </div>
+      <Card className="rounded-lg border-border/70 bg-card/40 py-5 shadow-none">
+        <CardContent className="px-3 sm:px-5">
           {isLoading ? (
-            <Skeleton className="mt-4 h-9 w-24" />
+            <Skeleton className="h-[340px] w-full" />
           ) : (
-            <p className="mt-3 font-mono text-4xl tabular-nums">{averageFill}%</p>
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-stretch">
+              <div className="min-w-0 flex-1">
+                <div className="mb-4 px-2">
+                  <p className="text-sm font-medium text-foreground">Relative trend</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Six-month price trend indexed against each element's observed ATH.
+                  </p>
+                </div>
+                <ChartContainer config={chartConfig} className="h-[300px] w-full">
+                  <AreaChart
+                    accessibilityLayer
+                    data={relativeTrendData}
+                    margin={{ left: 12, right: 12, top: 12 }}
+                  >
+                <CartesianGrid vertical={false} />
+                <YAxis
+                  width={48}
+                  domain={[70, 100]}
+                  ticks={[70, 80, 90, 100]}
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) => `${value}%`}
+                />
+                <XAxis
+                  dataKey="month"
+                  tickLine={false}
+                  axisLine={false}
+                  tickMargin={8}
+                  tickFormatter={(value) =>
+                    new Date(String(value)).toLocaleDateString("en-US", { month: "short" })
+                  }
+                />
+                <ChartTooltip
+                  cursor={false}
+                  content={
+                    <ChartTooltipContent
+                      formatter={(value) => (
+                        <span className="font-mono font-medium text-foreground tabular-nums">
+                          {Number(value).toLocaleString()}%
+                        </span>
+                      )}
+                      labelFormatter={(value) =>
+                        new Date(String(value)).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                        })
+                      }
+                    />
+                  }
+                />
+                <defs>
+                  {Object.keys(chartConfig).map((key) => (
+                    <linearGradient key={key} id={`fill-${key}`} x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={0.55} />
+                      <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0.02} />
+                    </linearGradient>
+                  ))}
+                </defs>
+                {Object.keys(chartConfig).map((key) => (
+                  <Area
+                    key={key}
+                    dataKey={key}
+                    type="natural"
+                    connectNulls
+                    fill={`url(#fill-${key})`}
+                    fillOpacity={0.4}
+                    stroke={`var(--color-${key})`}
+                    strokeWidth={2.2}
+                    dot={{ r: 3, strokeWidth: 0, fill: `var(--color-${key})` }}
+                    activeDot={{ r: 4 }}
+                  />
+                ))}
+                    <ChartLegend content={<ChartLegendContent />} />
+                  </AreaChart>
+                </ChartContainer>
+              </div>
+              <div className="flex flex-col lg:w-[260px] lg:shrink-0 lg:border-l lg:border-border/70 lg:pl-6">
+                <div className="mb-4">
+                  <p className="text-sm font-medium text-foreground">Warehouse fill</p>
+                  <p className="mt-0.5 text-xs text-muted-foreground">
+                    Current fill level by storable element.
+                  </p>
+                </div>
+                <WarehouseChart commodities={data ?? []} />
+              </div>
+            </div>
           )}
-        </div>
-
-        <div className="rounded-lg border border-border/70 bg-card/55 p-5">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <PackageCheck className="size-4" />
-            Elements tracked
-          </div>
-          {isLoading ? (
-            <Skeleton className="mt-4 h-9 w-16" />
-          ) : (
-            <p className="mt-3 font-mono text-4xl tabular-nums">{data?.length ?? 0}</p>
-          )}
-        </div>
-
-        <div className="rounded-lg border border-border/70 bg-card/55 p-5">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Boxes className="size-4" />
-            High fill
-          </div>
-          {isLoading ? (
-            <Skeleton className="mt-4 h-9 w-16" />
-          ) : (
-            <p className="mt-3 font-mono text-4xl tabular-nums">{highFillCount}</p>
-          )}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       <section className="overflow-hidden rounded-lg border border-border/70 bg-card/40">
-        {isLoading
-          ? Array.from({ length: 4 }).map((_, index) => (
-              <div
-                key={index}
-                className="grid min-h-20 grid-cols-[auto_1fr_auto] items-center gap-4 border-b border-border/70 px-5 py-3 last:border-b-0"
-              >
-                <Skeleton className="size-10 rounded-full" />
-                <Skeleton className="h-8 w-full" />
-                <Skeleton className="h-6 w-14" />
-              </div>
-            ))
-          : data?.map((commodity) => (
-              <WarehouseRow key={commodity.id} commodity={commodity} />
+        <div className="flex items-end justify-between gap-4 border-b border-border/70 px-4 py-3 sm:px-5">
+          <div>
+            <h2 className="text-sm font-medium">News</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Latest market signals affecting tracked elements.
+            </p>
+          </div>
+          <Link to="/signals" className="text-xs font-medium text-muted-foreground hover:text-foreground">
+            View all
+          </Link>
+        </div>
+        {signalsLoading ? (
+          <div className="space-y-3 p-5">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <Skeleton key={index} className="h-16 w-full" />
             ))}
+          </div>
+        ) : (
+          signals?.slice(0, 4).map((signal) => <NewsItem key={signal.id} signal={signal} />)
+        )}
       </section>
     </div>
   )

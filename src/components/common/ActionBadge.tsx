@@ -1,4 +1,4 @@
-import { ArrowDownToLine, Clock, Eye, Shield } from "lucide-react"
+import { Clock, Eye, ShoppingCart, Shield } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { ACTION_LABELS, type Action } from "@/types"
 
@@ -10,7 +10,7 @@ const STYLES: Record<Action, string> = {
 }
 
 const ICONS: Record<Action, typeof Shield> = {
-  buy: ArrowDownToLine,
+  buy: ShoppingCart,
   wait: Clock,
   hedge: Shield,
   monitor: Eye,

@@ -13,7 +13,7 @@
 :root {
   --radius: 0.25rem; /* 4px — Warp {rounded.md} base */
 
-  --background: #2b2622; /* {colors.canvas} */
+  --background: #242019; /* {colors.canvas} */
   --foreground: #f7f5f0; /* {colors.ink} */
   --card: #383330; /* {colors.canvas-soft} */
   --card-foreground: #f7f5f0;
@@ -56,8 +56,8 @@
   /* Cala partner accent (used sparingly) */
   --cala: #c9c0ad; /* {colors.body} — warm, on-brand */
 
-  /* sidebar — warm, slightly darker than the canvas */
-  --sidebar: #242019;
+  /* sidebar — warm, slightly lighter than the canvas */
+  --sidebar: #2b2622;
   --sidebar-foreground: #c9c0ad;
   --sidebar-primary: #f7f5f0;
   --sidebar-primary-foreground: #2b2622;
@@ -69,7 +69,7 @@
 
 /* App is dark by default; mirror tokens so shadcn .dark utilities resolve. */
 .dark {
-  --background: #2b2622;
+  --background: #242019;
   --foreground: #f7f5f0;
   --card: #383330;
   --card-foreground: #f7f5f0;
@@ -103,7 +103,7 @@
   --chart-4: #d99a4e;
   --chart-5: #b48ead;
   --cala: #c9c0ad;
-  --sidebar: #242019;
+  --sidebar: #2b2622;
   --sidebar-foreground: #c9c0ad;
   --sidebar-primary: #f7f5f0;
   --sidebar-primary-foreground: #2b2622;

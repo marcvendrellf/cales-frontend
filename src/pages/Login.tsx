@@ -25,7 +25,6 @@ export function Login() {
   return (
     <AuthLayout
       eyebrow="Welcome back"
-      title="See the latest buying signals before the market moves."
       description="Sign in to return to your commodity dashboard, scenario tools, and recommendation history."
     >
       <Card className="w-full max-w-md rounded-lg border-border/80 bg-card/70 shadow-none">

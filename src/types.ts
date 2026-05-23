@@ -52,6 +52,13 @@ export interface HistoricalAnalogue {
   outcome: string
 }
 
+export interface RecommendationChange {
+  action: Action
+  /** ISO date "YYYY-MM-DD" */
+  date: string
+  note: string
+}
+
 export interface Recommendation {
   action: Action
   /** human horizon, e.g. "Next 3 months" */
@@ -76,10 +83,12 @@ export interface Commodity {
   trend: Trend
   /** economic weight for Damm, 0..1 — drives ordering / emphasis */
   weight: number
-  /** current warehouse fill level, 0..100 */
-  warehouseFillPct: number
+  /** current warehouse fill level, 0..100. Omitted for non-storable elements (e.g. energy). */
+  warehouseFillPct?: number
   blurb: string
   recommendation: Recommendation
+  /** Chronological log of recommendation changes (oldest first). Last entry matches current recommendation.action. */
+  recommendationHistory: RecommendationChange[]
   drivers: Driver[]
   evidence: Evidence[]
   history: HistoricalAnalogue[]

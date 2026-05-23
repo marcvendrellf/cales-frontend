@@ -1,17 +1,16 @@
-import { Link, useNavigate, useParams } from "react-router-dom"
-import { ExternalLink, History, TrendingDown, TrendingUp } from "lucide-react"
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { ExternalLink, FileText, Info, Sparkles, TrendingDown, TrendingUp } from "lucide-react"
 import { useCommodity } from "@/api/hooks"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
 import { Card } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Separator } from "@/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { ReportBuilder } from "@/components/common/ReportBuilder"
+import { ReportPreview } from "@/components/common/ReportPreview"
 import { PriceChart } from "@/components/common/PriceChart"
-import { ScoreGauge } from "@/components/common/ScoreGauge"
-import { ActionBadge } from "@/components/common/ActionBadge"
 import { TrendArrow } from "@/components/common/TrendArrow"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
-import { WhatIfPanel } from "@/components/common/WhatIfPanel"
-import { CommodityArt } from "@/components/common/CommodityArt"
 import { fmtDate, reliabilityLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Commodity, CommodityId, Driver, Evidence } from "@/types"
@@ -95,47 +94,15 @@ function DetailSkeleton() {
   )
 }
 
-function Loaded({ c }: { c: Commodity }) {
-  const navigate = useNavigate()
+function GeneralInfo({ c }: { c: Commodity }) {
   const maxWeight = Math.max(...c.drivers.map((d) => d.weight))
   const up = c.drivers.filter((d) => d.direction === "up")
   const down = c.drivers.filter((d) => d.direction === "down")
-  const rec = c.recommendation
   const sparkColor =
     c.trend === "up" ? "positive" : c.trend === "down" ? "negative" : "muted-foreground"
 
-  useBreadcrumbs([
-    { label: "Elements", onClick: () => navigate("/elements") },
-    { label: c.name },
-  ])
-
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex items-start gap-4">
-          <CommodityArt id={c.id} className="size-14 shrink-0" />
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="display-serif text-3xl">{c.name}</h1>
-              <ActionBadge action={rec.action} size="lg" />
-            </div>
-            <p className="mt-1 max-w-xl text-sm text-muted-foreground">{c.blurb}</p>
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="font-mono text-3xl tabular-nums">
-            <AnimatedNumber value={c.spot} digits={c.spot < 100 ? 2 : 0} />
-            <span className="ml-1.5 text-sm text-muted-foreground">{c.unit}</span>
-          </div>
-          <div className="mt-1 flex items-center justify-end gap-3">
-            <TrendArrow change={c.change24h} /> <span className="text-[11px] text-muted-foreground">24h</span>
-            <TrendArrow change={c.change30d} trend={c.trend} /> <span className="text-[11px] text-muted-foreground">30d</span>
-          </div>
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-3">
+    <div className="grid gap-6 lg:grid-cols-3">
         {/* Left column */}
         <div className="space-y-6 lg:col-span-2">
           <Card className="p-5">
@@ -173,59 +140,10 @@ function Loaded({ c }: { c: Commodity }) {
             </div>
           </Card>
 
-          {c.history.length > 0 && (
-            <Card className="p-5">
-              <h2 className="flex items-center gap-1.5 text-sm font-medium">
-                <History className="size-4" /> Historical analogue
-              </h2>
-              {c.history.map((h) => (
-                <div key={h.id} className="mt-3 rounded-md border border-border bg-background/40 p-4">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-medium">{h.title}</span>
-                    <span className="font-mono text-xs text-muted-foreground">
-                      {Math.round(h.similarity * 100)}% match
-                    </span>
-                  </div>
-                  <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">{h.period}</p>
-                  <p className="mt-2 text-sm text-muted-foreground">{h.summary}</p>
-                  <p className="mt-2 text-sm">
-                    <span className="text-muted-foreground">Outcome: </span>
-                    {h.outcome}
-                  </p>
-                </div>
-              ))}
-            </Card>
-          )}
         </div>
 
         {/* Right column */}
         <div className="space-y-6">
-          <Card className="p-5">
-            <div className="flex flex-col items-center">
-              <ScoreGauge score={rec.score} />
-              <ActionBadge action={rec.action} size="lg" className="mt-2" />
-              <p className="mt-2 font-mono text-xs text-muted-foreground">{rec.horizon}</p>
-            </div>
-            <Separator className="my-4" />
-            <p className="text-sm leading-relaxed text-foreground/90">{rec.summary}</p>
-            <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
-              <span>Confidence</span>
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-20 overflow-hidden rounded-full bg-secondary">
-                  <div
-                    className="h-full rounded-full bg-foreground/70"
-                    style={{ width: `${rec.confidence * 100}%` }}
-                  />
-                </div>
-                <span className="font-mono">{Math.round(rec.confidence * 100)}%</span>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-5">
-            <WhatIfPanel c={c} />
-          </Card>
-
           <Card className="p-5">
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-medium">Evidence</h2>
@@ -245,6 +163,86 @@ function Loaded({ c }: { c: Commodity }) {
           </Card>
         </div>
       </div>
+  )
+}
+
+function Loaded({ c }: { c: Commodity }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const isReport = location.pathname.endsWith("/report")
+  const isPreview = location.pathname.endsWith("/preview")
+  const tab = isPreview ? "preview" : isReport ? "report" : "general"
+
+  useBreadcrumbs(
+    isPreview
+      ? [
+          { label: "Reports", onClick: () => navigate("/reports") },
+          { label: c.name, onClick: () => navigate(`/c/${c.id}`) },
+          { label: "Preview" },
+        ]
+      : isReport
+        ? [
+            { label: "Reports", onClick: () => navigate("/reports") },
+            { label: c.name, onClick: () => navigate(`/c/${c.id}`) },
+            { label: "Report" },
+          ]
+        : [
+            { label: "Reports", onClick: () => navigate("/reports") },
+            { label: c.name },
+          ],
+  )
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="display-serif text-3xl">{c.name}</h1>
+            </div>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">{c.blurb}</p>
+          </div>
+        </div>
+        <div className="text-right">
+          <div className="font-mono text-3xl tabular-nums">
+            <AnimatedNumber value={c.spot} digits={c.spot < 100 ? 2 : 0} />
+            <span className="ml-1.5 text-sm text-muted-foreground">{c.unit}</span>
+          </div>
+          <div className="mt-1 flex items-center justify-end gap-3">
+            <TrendArrow change={c.change24h} /> <span className="text-[11px] text-muted-foreground">24h</span>
+            <TrendArrow change={c.change30d} trend={c.trend} /> <span className="text-[11px] text-muted-foreground">30d</span>
+          </div>
+        </div>
+      </div>
+
+      <Tabs
+        value={tab}
+        onValueChange={(v) =>
+          navigate(v === "report" ? `/c/${c.id}/report` : v === "preview" ? `/c/${c.id}/preview` : `/c/${c.id}`)
+        }
+      >
+        <TabsList>
+          <TabsTrigger value="general">
+            <Info /> General information
+          </TabsTrigger>
+          <TabsTrigger value="report">
+            <FileText /> Report
+          </TabsTrigger>
+          <TabsTrigger value="preview">
+            <Sparkles /> Report Preview
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="general" className="mt-6">
+          <GeneralInfo c={c} />
+        </TabsContent>
+        <TabsContent value="report" className="mt-6">
+          <ReportBuilder c={c} />
+        </TabsContent>
+        <TabsContent value="preview" className="mt-6">
+          <ReportPreview c={c} />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }
@@ -258,8 +256,8 @@ export function CommodityDetail() {
     return (
       <div className="py-20 text-center">
         <p className="text-sm text-muted-foreground">Commodity not found.</p>
-        <Link to="/elements" className="mt-2 inline-block text-sm underline">
-          Back to Elements
+        <Link to="/reports" className="mt-2 inline-block text-sm underline">
+          Back to Reports
         </Link>
       </div>
     )

@@ -72,10 +72,10 @@ export function SidebarUser() {
             </SidebarMenuButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent
-            side={isMobile ? "bottom" : "right"}
+            side={isMobile ? "bottom" : "top"}
             align="start"
-            sideOffset={8}
-            className="min-w-56 rounded-lg"
+            sideOffset={10}
+            className="w-[var(--radix-dropdown-menu-trigger-width)] min-w-56 rounded-lg"
           >
             <DropdownMenuLabel className="p-0 font-normal">
               <div className="flex items-center gap-2 px-1.5 py-1.5">

@@ -5,7 +5,6 @@ import { CommodityDetail } from "@/pages/CommodityDetail"
 import { Overview } from "@/pages/Overview"
 import { Login } from "@/pages/Login"
 import { Register } from "@/pages/Register"
-import { SceneLab } from "@/pages/SceneLab"
 import { Signals } from "@/pages/Signals"
 import { Toaster } from "@/components/ui/sonner"
 
@@ -17,9 +16,10 @@ export default function App() {
         <Route path="/register" element={<Register />} />
         <Route element={<AppShell />}>
           <Route path="/" element={<Overview />} />
-          <Route path="/elements" element={<CommandCenter />} />
+          <Route path="/reports" element={<CommandCenter />} />
           <Route path="/c/:id" element={<CommodityDetail />} />
-          <Route path="/scene-lab" element={<SceneLab />} />
+          <Route path="/c/:id/report" element={<CommodityDetail />} />
+          <Route path="/c/:id/preview" element={<CommodityDetail />} />
           <Route path="/signals" element={<Signals />} />
         </Route>
       </Routes>

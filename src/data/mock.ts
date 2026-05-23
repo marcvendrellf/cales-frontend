@@ -3,6 +3,7 @@ import type {
   CommodityId,
   MarketSignal,
   PricePoint,
+  RecommendationChange,
 } from "@/types"
 
 // Deterministic pseudo-random so the demo looks identical every run.
@@ -56,7 +57,7 @@ export const COMMODITIES: Commodity[] = [
     change30d: 6.4,
     trend: "up",
     weight: 1.0,
-    warehouseFillPct: 82,
+    warehouseFillPct: 80,
     blurb:
       "Highest economic weight for Damm — cans & packaging. Energy-driven supply, LME-priced.",
     recommendation: {
@@ -68,6 +69,13 @@ export const COMMODITIES: Commodity[] = [
         "Upward pressure is building from European smelter curtailments and a firming energy curve while LME stocks draw down. The setup rhymes with 2021. Secure base volume now; hedge the tail to Q3.",
       updatedAt: "2026-05-23T08:30:00Z",
     },
+    recommendationHistory: [
+      { action: "monitor", date: "2025-10-01", note: "Post-summer slowdown; waiting for Q4 signals before committing." },
+      { action: "buy",     date: "2025-11-14", note: "European smelter constraints emerging on power costs; early entry." },
+      { action: "hedge",   date: "2026-01-09", note: "Macro uncertainty after rate decisions and tariff risk — cap exposure." },
+      { action: "wait",    date: "2026-02-27", note: "Price ran ahead of fundamentals; waiting for a cleaner re-entry." },
+      { action: "buy",     date: "2026-05-15", note: "Smelter curtailments confirmed; LME stocks drawing for 5th straight week." },
+    ] satisfies RecommendationChange[],
     drivers: [
       {
         id: "al-d1",
@@ -180,7 +188,7 @@ export const COMMODITIES: Commodity[] = [
     change30d: -2.1,
     trend: "down",
     weight: 0.7,
-    warehouseFillPct: 43,
+    warehouseFillPct: 45,
     blurb:
       "Bottle resin (vPET / rPET). Driven by PTA, MEG, crude, and EU recycled-content rules.",
     recommendation: {
@@ -192,6 +200,13 @@ export const COMMODITIES: Commodity[] = [
         "Feedstock (PTA/MEG) and crude are easing and Asian import availability is ample. Spot likely drifts lower near-term — wait before committing virgin volume; watch rPET separately on regulation.",
       updatedAt: "2026-05-23T08:30:00Z",
     },
+    recommendationHistory: [
+      { action: "buy",     date: "2025-10-15", note: "Restock cycle; low inventory ahead of peak season justified buying." },
+      { action: "wait",    date: "2025-12-18", note: "Crude softening; feedstock cost relief expected in coming weeks." },
+      { action: "monitor", date: "2026-02-20", note: "EU recycled-content rules adding complexity; vPET/rPET diverging." },
+      { action: "buy",     date: "2026-04-08", note: "Short window: supply tightened temporarily and feedstock bounced." },
+      { action: "wait",    date: "2026-05-10", note: "Ample Asia/Turkey imports; feedstock easing again — spot likely drifts lower." },
+    ] satisfies RecommendationChange[],
     drivers: [
       {
         id: "pet-d1",
@@ -287,7 +302,6 @@ export const COMMODITIES: Commodity[] = [
     change30d: 11.2,
     trend: "up",
     weight: 0.85,
-    warehouseFillPct: 68,
     blurb:
       "Power & gas. Direct brewing cost and an upstream driver of aluminium & PET. OMIP / TTF.",
     recommendation: {
@@ -299,6 +313,13 @@ export const COMMODITIES: Commodity[] = [
         "Two-sided risk is high: low gas storage and a forecast cold snap skew the tail upward, but mild scenarios exist. Don't chase spot — hedge a 6-month strip to cap exposure into winter.",
       updatedAt: "2026-05-23T08:30:00Z",
     },
+    recommendationHistory: [
+      { action: "monitor", date: "2025-09-22", note: "End of summer; storage rebuilding, no urgency to act." },
+      { action: "hedge",   date: "2025-11-05", note: "Winter storage below seasonal norm; cold forecast raised tail risk." },
+      { action: "wait",    date: "2026-01-15", note: "Mild winter relieved pressure; spot softened, hedges less urgent." },
+      { action: "monitor", date: "2026-03-10", note: "Spring transition; signals mixed, no clear edge either way." },
+      { action: "hedge",   date: "2026-05-18", note: "TTF spike and below-norm storage raised winter tail risk again — lock the strip." },
+    ] satisfies RecommendationChange[],
     drivers: [
       {
         id: "en-d1",
@@ -393,7 +414,7 @@ export const COMMODITIES: Commodity[] = [
     change30d: 1.3,
     trend: "flat",
     weight: 0.6,
-    warehouseFillPct: 27,
+    warehouseFillPct: 30,
     blurb:
       "Malting input for brewing. First-party 6-month Damm dataset — our model backtest anchor.",
     recommendation: {
@@ -405,6 +426,12 @@ export const COMMODITIES: Commodity[] = [
         "Signals are balanced: weather is benign so far and stocks are adequate, but the growing season is the swing factor. No edge yet — monitor drought indices and the next crop-progress reports.",
       updatedAt: "2026-05-23T08:30:00Z",
     },
+    recommendationHistory: [
+      { action: "buy",     date: "2025-08-20", note: "Drought scare premium; good entry point before harvest clarity." },
+      { action: "monitor", date: "2025-10-10", note: "Harvest results in; comfortable — shifting to wait-and-see." },
+      { action: "wait",    date: "2026-01-22", note: "Comfortable carryover stocks; no urgency before growing season." },
+      { action: "monitor", date: "2026-03-15", note: "Early growing season begins; drought tail risk warrants close watch." },
+    ] satisfies RecommendationChange[],
     drivers: [
       {
         id: "ba-d1",

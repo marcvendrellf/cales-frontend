@@ -6,7 +6,6 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { SignalTicker } from "@/components/layout/SignalTicker"
 import { CommandPalette } from "@/components/command-palette/CommandPalette"
 import { AskBar } from "@/components/command-palette/AskBar"
 import { BreadcrumbProvider } from "@/components/shell/breadcrumb"
@@ -30,18 +29,17 @@ export function AppShell() {
     <BreadcrumbProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="h-svh min-w-0 overflow-hidden">
+        <SidebarInset className="relative h-svh min-w-0 overflow-hidden">
           <header className="sticky top-0 z-20 flex h-12 shrink-0 items-center gap-3 border-b border-border bg-background/90 px-4 backdrop-blur-md">
             <SidebarTrigger className="-ml-1" />
             <Breadcrumbs />
           </header>
-          <SignalTicker />
-          <main className="flex-1 overflow-y-auto px-6 py-8">
+          <main className="flex-1 overflow-y-auto px-6 py-8 pb-36">
             <div className="mx-auto w-full max-w-[1240px]">
               <Outlet />
             </div>
           </main>
-          <AskBar onOpen={() => setPaletteOpen(true)} />
+          <AskBar />
         </SidebarInset>
         <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       </SidebarProvider>

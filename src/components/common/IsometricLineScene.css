@@ -1,0 +1,48 @@
+/* Scene layers: a static belt, an idle item layer (all bright, at rest) and an
+   active item layer (same items advanced one slot, centre item recoloured).
+
+   Entering hover: the belt and the active items slide one belt-slot via a
+   keyframe (forward only). The active layer starts exactly where the idle items
+   sit, so the items already on screen are the ones seen moving, and the centre
+   item lands orange.
+
+   The layers swap instantly (no fade). Because the active layer's resting items
+   share the idle positions, the only on-screen change at the swap is the centre
+   item's colour. */
+
+.iso-stream-idle {
+  opacity: 1;
+}
+.iso-stream-active {
+  opacity: 0;
+}
+
+.group:hover .iso-stream-idle {
+  opacity: 0;
+}
+.group:hover .iso-stream-active {
+  opacity: 1;
+}
+
+.group:hover .iso-belt-track,
+.group:hover .iso-stream-active {
+  animation: iso-advance 0.55s ease both;
+}
+
+/* One belt-slot up the line (ITEM_SPACING * UL) -> rest, so the belt and items
+   travel down-left into place as the centre item turns orange. */
+@keyframes iso-advance {
+  from {
+    transform: translate(145.9px, -65.6px);
+  }
+  to {
+    transform: translate(0px, 0px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .group:hover .iso-belt-track,
+  .group:hover .iso-stream-active {
+    animation: none;
+  }
+}

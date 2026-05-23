@@ -9,7 +9,6 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command"
-import { ActionBadge } from "@/components/common/ActionBadge"
 import { Illustration } from "@/components/common/Illustration"
 import { COMMODITIES } from "@/data/mock"
 
@@ -46,7 +45,6 @@ export function CommandPalette({ open, onOpenChange }: Props) {
             >
               <TrendingUp className="size-4 text-muted-foreground" />
               <span>Should we act on {c.name}?</span>
-              <ActionBadge action={c.recommendation.action} size="sm" className="ml-auto" />
             </CommandItem>
           ))}
         </CommandGroup>

@@ -24,7 +24,6 @@ export function Register() {
   return (
     <AuthLayout
       eyebrow="Create your workspace"
-      title="Turn commodity volatility into clearer procurement decisions."
       description="Set up an account for your team and start tracking aluminium, PET, energy, and barley signals in one place."
     >
       <Card className="w-full max-w-md rounded-lg border-border/80 bg-card/70 shadow-none">
