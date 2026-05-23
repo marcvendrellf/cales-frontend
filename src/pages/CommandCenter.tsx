@@ -1,6 +1,6 @@
 import { useCommodities } from "@/api/hooks"
 import { CommodityCard } from "@/components/common/CommodityCard"
-import { RecommendationTimeline } from "@/components/common/RecommendationTimeline"
+import { AllReportsTable } from "@/components/common/AllReportsTable"
 import {
   CommodityCardSkeleton,
   RecommendationTimelineSkeleton,
@@ -28,7 +28,7 @@ export function CommandCenter() {
       {isLoading ? (
         <RecommendationTimelineSkeleton />
       ) : (
-        data && <RecommendationTimeline commodities={data} />
+        data && <AllReportsTable commodities={data} />
       )}
     </div>
   )

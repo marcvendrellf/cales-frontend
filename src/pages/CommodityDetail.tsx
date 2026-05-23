@@ -192,18 +192,20 @@ function GeneralInfo({ c }: { c: Commodity }) {
 function Loaded({ c }: { c: Commodity }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const isReport = location.pathname.endsWith("/report")
-  const isPreview = location.pathname.endsWith("/preview")
-  const tab = isPreview ? "preview" : isReport ? "report" : "general"
+  const isCreateReport =
+    location.pathname.endsWith("/create-report") || location.pathname.endsWith("/report")
+  const isReportList =
+    location.pathname.endsWith("/reports") || location.pathname.endsWith("/preview")
+  const tab = isReportList ? "report-list" : isCreateReport ? "create-report" : "general"
 
   useBreadcrumbs(
-    isPreview
+    isReportList
       ? [
           { label: "Reports", onClick: () => navigate("/reports") },
           { label: c.name, onClick: () => navigate(`/c/${c.id}`) },
           { label: "Report List" },
         ]
-      : isReport
+      : isCreateReport
         ? [
             { label: "Reports", onClick: () => navigate("/reports") },
             { label: c.name, onClick: () => navigate(`/c/${c.id}`) },
@@ -242,27 +244,33 @@ function Loaded({ c }: { c: Commodity }) {
       <Tabs
         value={tab}
         onValueChange={(v) =>
-          navigate(v === "report" ? `/c/${c.id}/report` : v === "preview" ? `/c/${c.id}/preview` : `/c/${c.id}`)
+          navigate(
+            v === "create-report"
+              ? `/c/${c.id}/create-report`
+              : v === "report-list"
+                ? `/c/${c.id}/reports`
+                : `/c/${c.id}/general-information`,
+          )
         }
       >
         <TabsList>
           <TabsTrigger value="general">
             <Info /> General information
           </TabsTrigger>
-          <TabsTrigger value="report">
+          <TabsTrigger value="create-report">
             <FileText /> Create Report
           </TabsTrigger>
-          <TabsTrigger value="preview">
+          <TabsTrigger value="report-list">
             <ListChecks /> Report List
           </TabsTrigger>
         </TabsList>
         <TabsContent value="general" className="mt-6">
           <GeneralInfo c={c} />
         </TabsContent>
-        <TabsContent value="report" className="mt-6">
+        <TabsContent value="create-report" className="mt-6">
           <ReportBuilder c={c} />
         </TabsContent>
-        <TabsContent value="preview" className="mt-6">
+        <TabsContent value="report-list" className="mt-6">
           <ReportList c={c} />
         </TabsContent>
       </Tabs>

@@ -18,6 +18,8 @@ import type { Action, Commodity } from "@/types"
 
 type ReportRow = {
   id: string
+  commodityId: string
+  commodityName: string
   title: string
   action: Action
   horizon: string
@@ -27,28 +29,32 @@ type ReportRow = {
   status: "Ready" | "Archived"
 }
 
-const PAGE_SIZE = 5
+const PAGE_SIZE = 8
 
-function buildReportRows(c: Commodity): ReportRow[] {
+function buildRowsForCommodity(c: Commodity): ReportRow[] {
   const historyRows = c.recommendationHistory
     .slice()
     .reverse()
     .map((entry, index) => ({
       id: `${c.id}-${entry.date}-${index}`,
+      commodityId: c.id,
+      commodityName: c.name,
       title: `${c.name} procurement report`,
       action: entry.action,
       horizon: index === 0 ? c.recommendation.horizon : "Previous call",
       sourceCount: Math.max(1, c.evidence.length - Math.min(index, 2)),
       owner: "Marc Vendrell",
       updatedAt: entry.date,
-      status: index === 0 ? "Ready" : "Archived",
-    })) satisfies ReportRow[]
+      status: (index === 0 ? "Ready" : "Archived") as ReportRow["status"],
+    }))
 
   if (historyRows.length) return historyRows
 
   return [
     {
       id: `${c.id}-current`,
+      commodityId: c.id,
+      commodityName: c.name,
       title: `${c.name} procurement report`,
       action: c.recommendation.action,
       horizon: c.recommendation.horizon,
@@ -60,20 +66,25 @@ function buildReportRows(c: Commodity): ReportRow[] {
   ]
 }
 
-export function ReportList({ c }: { c: Commodity }) {
+export function AllReportsTable({ commodities }: { commodities: Commodity[] }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
-  const rows = useMemo(() => buildReportRows(c), [c])
 
-  const openReport = (reportId: string) => navigate(`/c/${c.id}/reports/${reportId}`)
+  const openReport = (row: ReportRow) =>
+    navigate(`/c/${row.commodityId}/reports/${row.id}`)
+
+  const rows = useMemo(() => {
+    const all = commodities.flatMap(buildRowsForCommodity)
+    return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }, [commodities])
 
   const filteredRows = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) return rows
 
     return rows.filter((row) =>
-      [row.title, row.horizon, row.owner, row.status, row.action]
+      [row.commodityName, row.title, row.horizon, row.owner, row.status, row.action]
         .join(" ")
         .toLowerCase()
         .includes(normalized),
@@ -88,24 +99,29 @@ export function ReportList({ c }: { c: Commodity }) {
   const goNext = () => setPageIndex((current) => Math.min(pageCount - 1, current + 1))
 
   return (
-    <div className="flex flex-col gap-6">
+    <section className="space-y-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="relative max-w-sm flex-1">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => {
-              setQuery(event.target.value)
-              setPageIndex(0)
-            }}
-            placeholder="Search reports..."
-            aria-label="Search reports"
-            className="pl-9"
-          />
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <span className="font-mono">{filteredRows.length}</span>
-          <span>{filteredRows.length === 1 ? "report" : "reports"}</span>
+        <h2 className="text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          All reports
+        </h2>
+        <div className="flex items-center gap-3">
+          <div className="relative max-w-xs flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={query}
+              onChange={(event) => {
+                setQuery(event.target.value)
+                setPageIndex(0)
+              }}
+              placeholder="Search reports..."
+              aria-label="Search reports"
+              className="h-9 pl-9"
+            />
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="font-mono">{filteredRows.length}</span>
+            <span>{filteredRows.length === 1 ? "report" : "reports"}</span>
+          </div>
         </div>
       </div>
 
@@ -113,18 +129,18 @@ export function ReportList({ c }: { c: Commodity }) {
         <Table className="table-fixed">
           <colgroup>
             <col className="w-[34%]" />
-            <col className="w-[18%]" />
-            <col className="w-[22%]" />
             <col className="w-[16%]" />
-            <col className="w-[10%]" />
+            <col className="w-[16%]" />
+            <col className="w-[18%]" />
+            <col className="w-[16%]" />
           </colgroup>
           <TableHeader className="bg-muted/60">
             <TableRow>
               <TableHead className="px-4">Report</TableHead>
+              <TableHead className="px-4">Commodity</TableHead>
               <TableHead className="px-4">Decision</TableHead>
-              <TableHead className="px-4">Horizon</TableHead>
               <TableHead className="px-4">Updated</TableHead>
-              <TableHead className="px-4">Sources</TableHead>
+              <TableHead className="px-4">Horizon</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -134,11 +150,11 @@ export function ReportList({ c }: { c: Commodity }) {
                   key={row.id}
                   role="button"
                   tabIndex={0}
-                  onClick={() => openReport(row.id)}
+                  onClick={() => openReport(row)}
                   onKeyDown={(event) => {
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault()
-                      openReport(row.id)
+                      openReport(row)
                     }
                   }}
                   className="h-[53px] cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
@@ -151,17 +167,17 @@ export function ReportList({ c }: { c: Commodity }) {
                       </p>
                     </div>
                   </TableCell>
+                  <TableCell className="px-4 py-2 text-sm text-muted-foreground">
+                    {row.commodityName}
+                  </TableCell>
                   <TableCell className="px-4 py-2">
                     <ActionBadge action={row.action} size="sm" />
-                  </TableCell>
-                  <TableCell className="px-4 py-2 text-muted-foreground">
-                    {row.horizon}
                   </TableCell>
                   <TableCell className="px-4 py-2 font-mono text-xs text-muted-foreground">
                     {fmtDate(row.updatedAt)}
                   </TableCell>
-                  <TableCell className="px-4 py-2 font-mono text-xs tabular-nums text-muted-foreground">
-                    {row.sourceCount}
+                  <TableCell className="px-4 py-2 text-muted-foreground">
+                    {row.horizon}
                   </TableCell>
                 </TableRow>
               ))
@@ -176,31 +192,28 @@ export function ReportList({ c }: { c: Commodity }) {
         </Table>
       </Card>
 
-      <div className="flex items-center justify-between px-2">
-        <div className="text-sm font-medium">
-          Page {boundedPage + 1} of {pageCount}
+      {pageCount > 1 ? (
+        <div className="flex items-center justify-between px-2">
+          <div className="text-sm font-medium">
+            Page {boundedPage + 1} of {pageCount}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="icon-sm" onClick={goPrevious} disabled={boundedPage === 0}>
+              <span className="sr-only">Previous page</span>
+              <ChevronLeft />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon-sm"
+              onClick={goNext}
+              disabled={boundedPage >= pageCount - 1}
+            >
+              <span className="sr-only">Next page</span>
+              <ChevronRight />
+            </Button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goPrevious}
-            disabled={boundedPage === 0}
-          >
-            <span className="sr-only">Previous page</span>
-            <ChevronLeft />
-          </Button>
-          <Button
-            variant="outline"
-            size="icon-sm"
-            onClick={goNext}
-            disabled={boundedPage >= pageCount - 1}
-          >
-            <span className="sr-only">Next page</span>
-            <ChevronRight />
-          </Button>
-        </div>
-      </div>
-    </div>
+      ) : null}
+    </section>
   )
 }

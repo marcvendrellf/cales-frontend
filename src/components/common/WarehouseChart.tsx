@@ -62,7 +62,7 @@ export function WarehouseChart({ commodities }: Props) {
           </div>
           <div className="min-w-0">
             <div className="text-sm font-medium text-foreground">{gauge.name}</div>
-            <div className="text-xs text-muted-foreground">of capacity</div>
+            <div className="text-xs text-muted-foreground">capacity</div>
           </div>
         </div>
       ))}

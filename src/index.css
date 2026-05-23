@@ -218,6 +218,59 @@
 .animate-marquee {
   animation: marquee 40s linear infinite;
 }
+
+/* Cinematic report — black, editorial canvas, distinct from the warm app shell. */
+.report-theme {
+  --background: #0a0a0b;
+  --foreground: #f7f6f3;
+  --card: #161618;
+  --card-foreground: #f7f6f3;
+  --popover: #141416;
+  --popover-foreground: #f7f6f3;
+  --primary: #fafafa;
+  --primary-foreground: #0a0a0b;
+  --secondary: #1b1b1e;
+  --secondary-foreground: #f7f6f3;
+  --muted: #1b1b1e;
+  --muted-foreground: #9a9a97;
+  --accent: #232326;
+  --accent-foreground: #f7f6f3;
+  --border: #2a2a2d;
+  --input: #2a2a2d;
+  --ring: #5a5a5d;
+  --cala: #ddd4bd;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.report-theme .display-serif {
+  letter-spacing: -0.03em;
+}
+
+.report-theme h1.display-serif {
+  font-weight: 500;
+}
+
+.report-chapter {
+  animation: report-chapter-in 700ms ease both;
+}
+
+@keyframes report-chapter-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-chapter {
+    animation: none;
+  }
+}
 .marquee-pause:hover .animate-marquee {
   animation-play-state: paused;
 }
