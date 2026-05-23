@@ -56,8 +56,115 @@ export interface AgentAnalyzeRequest {
 }
 
 export interface AgentAnalyzeResponse {
-  answer: string
-  tool_calls: Record<string, unknown>[]
+  request_id: string
+  status: "completed" | "failed" | "processing"
+  material: CommodityId
+  generated_at: string
+  report_json: AgentWebsiteReport
+  executive_pdf?: AgentExecutivePdf
+  error?: string
+}
+
+export interface AgentExecutivePdf {
+  status: "ready" | "processing" | "failed"
+  file_name: string
+  mime_type: "application/pdf"
+  url: string
+  size_bytes?: number
+}
+
+export interface AgentWebsiteReport {
+  schema_version: string
+  output_type: "website_report"
+  analysis_type: AnalysisType
+  material: CommodityId
+  generated_at: string
+  horizon_days: number
+  horizon_label: ReportHorizon
+  recommendation: AgentReportRecommendation
+  market_context: AgentMarketContext
+  forecast: AgentForecast
+  price_paths: AgentPricePath[]
+  drivers: AgentReportDriver[]
+  evidence: AgentReportEvidence[]
+  what_to_monitor?: AgentMonitorItem[]
+}
+
+export interface AgentReportRecommendation {
+  action: Uppercase<Commodity["recommendation"]["action"]>
+  recommended_horizon_days: number
+  confidence: number
+  risk_score: number
+  opportunity_score: number
+  summary: string
+  decision_rationale: string
+}
+
+export interface AgentMarketContext {
+  current_date: string
+  spot_price?: {
+    value: number
+    unit: string
+    as_of: string
+    source_id?: string
+  }
+  warehouse_fill_pct?: number | null
+}
+
+export interface AgentForecast {
+  direction: "upward" | "downward" | "flat"
+  expected_change_pct: number
+  range_low_pct: number
+  range_high_pct: number
+  interpretation: string
+}
+
+export interface AgentPricePath {
+  id: string
+  label: string
+  graph_line_key: "base" | "upside" | "downside" | string
+  buyer_impact: "positive" | "negative" | "neutral"
+  summary: string
+  expected_change_pct: number
+  driver_ids: string[]
+  evidence_ids: string[]
+  graph_points: Array<{
+    date: string
+    value: number
+  }>
+  explainability?: {
+    click_title: string
+    plain_language: string
+    click_evidence_ids: string[]
+  }
+}
+
+export interface AgentReportDriver {
+  id: string
+  label: string
+  direction: "upward_price_pressure" | "downward_price_pressure"
+  buyer_impact: "positive" | "negative" | "neutral"
+  impact: "low" | "medium" | "high"
+  impact_score: number
+  confidence: number
+  explanation: string
+  evidence_ids: string[]
+}
+
+export interface AgentReportEvidence {
+  id: string
+  source: string
+  title: string
+  date: string
+  reliability: "high" | "medium" | "low"
+  url?: string
+  signal_extracted: string
+}
+
+export interface AgentMonitorItem {
+  item: string
+  why: string
+  evidence_source_ids: string[]
 }
 
 const STORAGE_PREFIX = "cales:report:"
@@ -73,8 +180,8 @@ const EVENT_COPY: Record<CommodityId, ReportConfig["countdownEvent"]> = {
   aluminium: {
     label: "LME stock update",
     date: "2026-06-03",
-    outcome: "stocks draw again",
-    shiftTo: "buy",
+    outcome: "stocks build instead of drawing",
+    shiftTo: "hedge",
   },
   pet: {
     label: "EU recycled-content vote",

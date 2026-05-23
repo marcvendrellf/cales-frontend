@@ -6,7 +6,6 @@ import { Overview } from "@/pages/Overview"
 import { Login } from "@/pages/Login"
 import { Register } from "@/pages/Register"
 import { ReportViewer } from "@/pages/ReportViewer"
-import { Signals } from "@/pages/Signals"
 import { Toaster } from "@/components/ui/sonner"
 
 export default function App() {
@@ -27,7 +26,6 @@ export default function App() {
           <Route path="/c/:id/reports" element={<CommodityDetail />} />
           <Route path="/c/:id/report" element={<CommodityDetail />} />
           <Route path="/c/:id/preview" element={<CommodityDetail />} />
-          <Route path="/signals" element={<Signals />} />
         </Route>
       </Routes>
       <Toaster />

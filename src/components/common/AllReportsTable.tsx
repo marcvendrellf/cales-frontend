@@ -72,7 +72,7 @@ export function AllReportsTable({ commodities }: { commodities: Commodity[] }) {
   const [pageIndex, setPageIndex] = useState(0)
 
   const openReport = (row: ReportRow) =>
-    navigate(`/c/${row.commodityId}/reports/${row.id}`)
+    navigate(`/c/${row.commodityId}/reports/${row.id}`, { viewTransition: true })
 
   const rows = useMemo(() => {
     const all = commodities.flatMap(buildRowsForCommodity)

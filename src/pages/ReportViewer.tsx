@@ -1,31 +1,25 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
+import { motion, type Variants } from "motion/react"
 import Lenis from "lenis"
 import { QRCodeSVG } from "qrcode.react"
 import {
+  ArrowDownRight,
   ArrowLeft,
-  CalendarClock,
+  ArrowRight,
+  ArrowUpRight,
   ChevronDown,
   ChevronUp,
-  ClipboardCheck,
   Copy,
   ExternalLink,
-  GitCompareArrows,
-  Gauge,
   Info,
-  LineChart as LineChartIcon,
-  MapPin,
-  Newspaper,
   QrCode,
-  Target,
   TrendingDown,
   TrendingUp,
   X,
 } from "lucide-react"
-import type { LucideIcon } from "lucide-react"
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ReferenceLine,
@@ -34,11 +28,9 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { ActionBadge } from "@/components/common/ActionBadge"
-import { ReportMaps } from "@/components/common/ReportMaps"
 import { ScoreGauge } from "@/components/common/ScoreGauge"
+import { Map as GeoMap } from "@/components/ui/map"
 import { Button } from "@/components/ui/button"
-import { Card } from "@/components/ui/card"
 import {
   Dialog,
   DialogContent,
@@ -52,12 +44,15 @@ import {
   defaultReportConfig,
   loadReportConfig,
   reportCommodityId,
+  type AgentPricePath,
+  type AgentReportDriver,
+  type AgentWebsiteReport,
   type ReportConfig,
   type WhatIfScenarioConfig,
 } from "@/lib/report-config"
-import { fmtDate, fmtPct, reliabilityLabel } from "@/lib/format"
+import { fmtDate, fmtNumber, fmtPct, reliabilityLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
-import type { Action, Commodity, Evidence } from "@/types"
+import { ACTION_LABELS, type Action, type Commodity, type Evidence } from "@/types"
 
 type ExplainPayload = {
   title: string
@@ -72,8 +67,10 @@ const actionArc: Record<Action, string> = {
   monitor: "var(--monitor)",
 }
 
-const actionFromScore = (score: number): Action =>
-  score >= 72 ? "buy" : score >= 62 ? "hedge" : score >= 46 ? "monitor" : "wait"
+const actionFromAgent = (action?: string): Action =>
+  action?.toLowerCase() === "buy" || action?.toLowerCase() === "wait" || action?.toLowerCase() === "hedge" || action?.toLowerCase() === "monitor"
+    ? action.toLowerCase() as Action
+    : "monitor"
 
 const REPORT_CHAPTER_SELECTOR = ".report-chapter"
 const easeInOutCubic = (time: number) =>
@@ -217,6 +214,20 @@ function evidenceFor(c: Commodity, ids: string[]) {
   return c.evidence.filter((item) => wanted.has(item.id))
 }
 
+function agentReport(config: ReportConfig): AgentWebsiteReport | null {
+  return config.agentResponse?.status === "completed" ? config.agentResponse.report_json : null
+}
+
+function agentEvidenceFor(report: AgentWebsiteReport | null, ids: string[]) {
+  if (!report) return []
+  const wanted = new Set(ids)
+  return report.evidence.filter((item) => wanted.has(item.id))
+}
+
+function agentDriverDirection(driver: AgentReportDriver) {
+  return driver.direction === "upward_price_pressure" ? "up" : "down"
+}
+
 function scenarioScore(c: Commodity, scenario: WhatIfScenarioConfig) {
   const delta = scenario.driverIds.reduce((sum, id) => {
     const driver = c.drivers.find((item) => item.id === id)
@@ -234,38 +245,156 @@ function reportUrl(reportId: string) {
   return `${window.location.origin}/r/${reportId}`
 }
 
+/* ── Editorial primitives ─────────────────────────────────────────────── */
+
+// Scroll-based viewport detection (IntersectionObserver is unreliable here).
+// One-shot: once revealed it stays revealed.
+function prefersReducedMotion() {
+  return typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+}
+
+function useInViewport<T extends HTMLElement>() {
+  const ref = useRef<T | null>(null)
+  const [inView, setInView] = useState(prefersReducedMotion)
+
+  useEffect(() => {
+    if (prefersReducedMotion()) return
+    let frame = 0
+    const check = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const el = ref.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const vh = window.innerHeight
+        const visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0)
+        if (visible > vh * 0.22) setInView(true)
+      })
+    }
+    check()
+    window.addEventListener("scroll", check, { passive: true })
+    window.addEventListener("resize", check)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", check)
+      window.removeEventListener("resize", check)
+    }
+  }, [])
+
+  return { ref, inView }
+}
+
+const reveal: Variants = {
+  hidden: { opacity: 0, y: 24 },
+  show: (i = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.55, ease: "easeOut", delay: 0.04 + i * 0.09 },
+  }),
+}
+
+function Eyebrow({ index, label }: { index: string; label: string }) {
+  return (
+    <div className="flex items-center gap-4">
+      <span className="font-mono text-[11px] tabular-nums tracking-[0.3em] text-muted-foreground/60">{index}</span>
+      <span className="h-px w-8 bg-border" />
+      <span className="font-mono text-[11px] uppercase tracking-[0.34em] text-cala/80">{label}</span>
+    </div>
+  )
+}
+
 function Chapter({
+  index,
   eyebrow,
   title,
-  icon: Icon,
+  lede,
   children,
   className,
 }: {
+  index: string
   eyebrow: string
-  title: string
-  icon: LucideIcon
-  children: React.ReactNode
+  title: React.ReactNode
+  lede?: React.ReactNode
+  children?: React.ReactNode
   className?: string
 }) {
+  const { ref, inView } = useInViewport<HTMLDivElement>()
   return (
     <section
       className={cn(
-        "report-chapter relative flex min-h-screen snap-start flex-col justify-center px-5 py-16 sm:px-8 lg:px-14",
+        "report-chapter relative flex min-h-screen snap-start flex-col justify-center px-5 py-16 sm:px-8 lg:px-16",
         className,
       )}
     >
-      <div className="mx-auto w-full max-w-7xl">
-        <div className="flex items-center gap-3">
-          <span className="inline-flex size-10 items-center justify-center rounded-md border border-border/70 bg-card/50 text-cala">
-            <Icon className="size-5" />
-          </span>
-          <p className="font-mono text-xs uppercase tracking-[0.28em] text-cala/80">{eyebrow}</p>
-        </div>
-        <h2 className="display-serif mt-4 max-w-4xl text-4xl leading-tight sm:text-6xl">{title}</h2>
-        <div className="mt-8">{children}</div>
-      </div>
+      <motion.div
+        ref={ref}
+        initial="hidden"
+        animate={inView ? "show" : "hidden"}
+        className="mx-auto w-full max-w-6xl"
+      >
+        <motion.div variants={reveal} custom={0}>
+          <Eyebrow index={index} label={eyebrow} />
+        </motion.div>
+        <motion.h2
+          variants={reveal}
+          custom={1}
+          className="display-serif mt-7 max-w-4xl text-4xl leading-[1.04] sm:text-5xl lg:text-[3.75rem]"
+        >
+          {title}
+        </motion.h2>
+        {lede ? (
+          <motion.p variants={reveal} custom={2} className="mt-6 max-w-2xl text-lg leading-8 text-muted-foreground">
+            {lede}
+          </motion.p>
+        ) : null}
+        {children ? (
+          <motion.div variants={reveal} custom={3} className="mt-10">
+            {children}
+          </motion.div>
+        ) : null}
+      </motion.div>
     </section>
   )
+}
+
+function Figure({
+  label,
+  value,
+  sub,
+  accent,
+  className,
+}: {
+  label: string
+  value: React.ReactNode
+  sub?: string
+  accent?: string
+  className?: string
+}) {
+  return (
+    <div className={className}>
+      <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{label}</p>
+      <p className="display-serif mt-2.5 text-5xl leading-none tabular-nums sm:text-6xl" style={accent ? { color: accent } : undefined}>
+        {value}
+      </p>
+      {sub ? <p className="mt-2 text-sm text-muted-foreground">{sub}</p> : null}
+    </div>
+  )
+}
+
+function SourceLine({ sources, className }: { sources: string[]; className?: string }) {
+  const unique = Array.from(new Set(sources.filter(Boolean)))
+  if (unique.length === 0) return null
+  return (
+    <p className={cn("font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/70", className)}>
+      Sources · {unique.join("  /  ")}
+    </p>
+  )
+}
+
+function Refs({ ids }: { ids: string[] }) {
+  const unique = Array.from(new Set(ids.filter(Boolean)))
+  if (unique.length === 0) return null
+  return <span className="ml-1 align-super font-mono text-[10px] tracking-tight text-cala/70">{unique.join(",")}</span>
 }
 
 function SectionNavigation({
@@ -319,21 +448,21 @@ function SectionNavigation({
 function ExplainButton({
   payload,
   onExplain,
+  label = "Why",
 }: {
   payload: ExplainPayload
   onExplain: (payload: ExplainPayload) => void
+  label?: string
 }) {
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
-      size="sm"
       onClick={() => onExplain(payload)}
-      className="gap-1.5"
+      className="group inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-cala/80 transition hover:text-foreground"
     >
       <Info className="size-3.5" />
-      Explain
-    </Button>
+      <span className="border-b border-cala/30 pb-0.5 transition group-hover:border-foreground/60">{label}</span>
+    </button>
   )
 }
 
@@ -369,45 +498,51 @@ function ExplainPanel({
             </button>
           </div>
           <p className="mt-6 text-sm leading-7 text-foreground/85">{payload.body}</p>
-          <div className="mt-6 flex flex-wrap gap-2">
-            {payload.citations.map((citation) => (
-              <span key={citation} className="rounded-sm border border-border bg-background/60 px-2 py-1 text-xs text-cala">
-                {citation}
-              </span>
-            ))}
-          </div>
+          {payload.citations.length > 0 ? (
+            <SourceLine sources={payload.citations} className="mt-6" />
+          ) : null}
         </div>
       ) : null}
     </aside>
   )
 }
 
+/* ── Slides ───────────────────────────────────────────────────────────── */
+
 function Cover({ c, config, publicMode }: { c: Commodity; config: ReportConfig; publicMode: boolean }) {
+  const report = agentReport(config)
+  const generatedAt = report?.generated_at ?? config.generatedAt
+  const horizon = report?.horizon_label ?? config.horizon
+  const action = actionFromAgent(report?.recommendation.action ?? c.recommendation.action)
+  const thesis = report?.recommendation.summary ?? splitSummary(c.recommendation.summary)
+
   return (
-    <section className="report-chapter relative flex min-h-screen snap-start flex-col justify-center overflow-hidden px-5 py-16 sm:px-8 lg:px-14">
-      <div className="relative mx-auto w-full max-w-7xl">
+    <section className="report-chapter relative flex min-h-screen snap-start flex-col justify-center overflow-hidden px-5 py-16 sm:px-8 lg:px-16">
+      <div className="relative mx-auto w-full max-w-6xl">
         {publicMode ? (
           <span className="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Public jury pack</span>
         ) : null}
 
         <div className="mt-20 max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-700">
-          <p className="font-mono text-xs uppercase tracking-[0.28em] text-cala">
-            Cales procurement brief · {fmtDate(config.generatedAt)}
+          <p className="font-mono text-xs uppercase tracking-[0.3em] text-cala">
+            Cales procurement brief · {fmtDate(generatedAt)}
           </p>
-          <h1 className="display-serif mt-5 text-6xl leading-[0.95] sm:text-8xl lg:text-9xl">
-            {c.name}
-          </h1>
-          <p className="mt-6 max-w-2xl text-xl leading-8 text-muted-foreground">
-            {c.name} procurement report for Damm. Horizon:{" "}
-            <span className="text-foreground">{config.horizon}</span>.
-          </p>
+          <h1 className="display-serif mt-6 text-6xl leading-[0.92] sm:text-8xl lg:text-[8.5rem]">{c.name}</h1>
+          <p className="mt-8 max-w-2xl text-xl leading-8 text-foreground/80">{thesis}</p>
+          <div className="mt-10 flex flex-wrap items-center gap-4 font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">
+            <span className="font-medium" style={{ color: actionArc[action] }}>{ACTION_LABELS[action]}</span>
+            <span className="h-3 w-px bg-border" />
+            <span>Horizon {horizon}</span>
+            <span className="h-3 w-px bg-border" />
+            <span>Prepared for Damm</span>
+          </div>
         </div>
       </div>
     </section>
   )
 }
 
-function Summary({
+function TheCall({
   c,
   config,
   onExplain,
@@ -416,75 +551,139 @@ function Summary({
   config: ReportConfig
   onExplain: (payload: ExplainPayload) => void
 }) {
-  const rec = c.recommendation
+  const report = agentReport(config)
+  const rec = report?.recommendation
+  const action = actionFromAgent(rec?.action ?? c.recommendation.action)
+  const score = rec?.risk_score ?? c.recommendation.score
+  const opportunity = rec?.opportunity_score
+  const confidence = Math.round((rec?.confidence ?? c.recommendation.confidence) * 100)
+  const horizon = report?.horizon_label ?? config.horizon
+  const spot = report?.market_context.spot_price?.value ?? c.spot
+  const unit = report?.market_context.spot_price?.unit ?? c.unit
+  const rationale = rec?.decision_rationale ?? rec?.summary ?? splitSummary(c.recommendation.summary)
   const days = daysUntil(config.countdownEvent.date)
-  const summary = splitSummary(rec.summary)
+  const accent = actionArc[action]
+  const shiftAccent = actionArc[config.countdownEvent.shiftTo]
+  const verb = ACTION_LABELS[action].toLowerCase()
 
   return (
-    <Chapter eyebrow="01 · Summary" title="Recommendation summary and timing risk." icon={Gauge}>
-      <div className="grid items-center gap-8 lg:grid-cols-[420px_1fr]">
-        <Card className="items-center justify-center border-border/70 bg-card/45 p-8">
-          <ScoreGauge score={rec.score} size={300} colorVar={actionArc[rec.action]} />
-          <ActionBadge action={rec.action} size="lg" className="mt-8" />
-        </Card>
-        <div className="space-y-5">
-          <div className="rounded-lg border border-border/70 bg-background/35 p-6">
-            <div className="flex items-center gap-3 text-cala">
-              <CalendarClock className="size-5" />
-              <span className="font-mono text-xs uppercase tracking-[0.2em]">Next material event</span>
-            </div>
-            <div className="mt-5 flex flex-wrap items-end gap-4">
-              <span className="font-mono text-7xl tabular-nums">{days}</span>
-              <div className="pb-2">
-                <p className="text-xl text-foreground">{config.countdownEvent.label}</p>
-                <p className="text-sm text-muted-foreground">{fmtDate(config.countdownEvent.date)}</p>
-              </div>
-            </div>
-            <p className="mt-5 text-sm leading-6 text-muted-foreground">
-              If {config.countdownEvent.outcome}, recommendation may shift to{" "}
-              <span className="font-medium uppercase text-foreground">{config.countdownEvent.shiftTo}</span>.
-            </p>
+    <Chapter
+      index="01"
+      eyebrow="The call"
+      title={
+        <>
+          Damm should <span style={{ color: accent }}>{verb}</span> {c.name.toLowerCase()}.
+        </>
+      }
+    >
+      <div className="grid gap-12 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="space-y-10">
+          <p className="max-w-2xl text-xl leading-8 text-foreground/85">{rationale}</p>
+          <div className="flex flex-wrap items-start gap-x-12 gap-y-8 border-t border-border/60 pt-9">
+            <Figure label="Confidence" value={`${confidence}%`} />
+            <Figure label="Horizon" value={horizon} />
+            <Figure label="Spot" value={fmtNumber(spot)} sub={unit} />
+            {opportunity != null ? <Figure label="Opportunity" value={Math.round(opportunity)} /> : null}
           </div>
-          <Card className="border-border/70 bg-card/45 p-6">
-            <div className="flex items-start justify-between gap-4">
-              <p className="max-w-3xl text-xl leading-8 text-foreground/90">{summary}</p>
-              <ExplainButton
-                onExplain={onExplain}
-                payload={{
-                  title: "Executive summary",
-                  body: `The summary is composed from the current recommendation and the selected market drivers. The strongest active factors are ${selectedDrivers(c, config).slice(0, 2).map((driver) => driver.label).join(" and ")}, which explain the action bias.`,
-                  citations: selectedDrivers(c, config).slice(0, 3).map((driver) => driver.sourceId ?? driver.label),
-                }}
-              />
-            </div>
-          </Card>
+          <div className="flex flex-wrap items-center justify-between gap-4 gap-y-3">
+            <p className="max-w-xl text-sm leading-6 text-muted-foreground">
+              <span className="font-mono text-foreground">{days} days</span> to {config.countdownEvent.label} ·{" "}
+              {fmtDate(config.countdownEvent.date)}. If {config.countdownEvent.outcome}, the call may shift to{" "}
+              <span className="font-medium uppercase" style={{ color: shiftAccent }}>
+                {config.countdownEvent.shiftTo}
+              </span>
+              .
+            </p>
+            <ExplainButton
+              onExplain={onExplain}
+              label="Why this call"
+              payload={{
+                title: "Why this call",
+                body: rationale,
+                citations:
+                  report?.drivers.slice(0, 3).flatMap((driver) => driver.evidence_ids) ??
+                  selectedDrivers(c, config).slice(0, 3).map((driver) => driver.sourceId ?? driver.label),
+              }}
+            />
+          </div>
+        </div>
+        <div className="flex justify-center lg:justify-end">
+          <ScoreGauge score={score} size={300} colorVar={accent} label="Risk / Opportunity" />
         </div>
       </div>
     </Chapter>
   )
 }
 
-function DecisionStrip({ c, config }: { c: Commodity; config: ReportConfig }) {
+function Forecast({
+  c,
+  config,
+  onExplain,
+}: {
+  c: Commodity
+  config: ReportConfig
+  onExplain: (payload: ExplainPayload) => void
+}) {
+  const report = agentReport(config)
+  const f = report?.forecast
+  const horizon = report?.horizon_label ?? config.horizon
+  const change = f?.expected_change_pct ?? c.change30d
+  const direction = f?.direction ?? (change > 0.5 ? "upward" : change < -0.5 ? "downward" : "flat")
+  const low = f?.range_low_pct ?? Math.min(change - 4, 0)
+  const high = f?.range_high_pct ?? Math.max(change + 4, 0)
+  const interpretation =
+    f?.interpretation ??
+    `Over the ${horizon} horizon, ${c.name} prices look ${direction === "flat" ? "range-bound" : direction}, tracking the balance of the active drivers.`
+  const up = direction === "upward"
+  const flat = direction === "flat"
+  const color = flat ? "var(--muted-foreground)" : up ? "var(--positive)" : "var(--negative)"
+  const DirIcon = up ? ArrowUpRight : flat ? ArrowRight : ArrowDownRight
+  const span = Math.max(high - low, 0.1)
+  const place = (n: number) => Math.max(0, Math.min(100, ((n - low) / span) * 100))
+
   return (
-    <Chapter eyebrow="02 · Decision" title="Recommended action, confidence, horizon, and spot price." icon={Target}>
-      <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-border/70 bg-card/45 p-6 md:col-span-1">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Action</p>
-          <ActionBadge action={c.recommendation.action} size="lg" className="mt-5 text-lg" />
-        </Card>
-        <Card className="border-border/70 bg-card/45 p-6">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Confidence</p>
-          <p className="mt-4 font-mono text-6xl">{Math.round(c.recommendation.confidence * 100)}%</p>
-        </Card>
-        <Card className="border-border/70 bg-card/45 p-6">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Horizon</p>
-          <p className="mt-4 font-mono text-6xl">{config.horizon}</p>
-        </Card>
-        <Card className="border-border/70 bg-card/45 p-6">
-          <p className="text-xs uppercase tracking-wide text-muted-foreground">Spot</p>
-          <p className="mt-4 font-mono text-4xl">{c.spot}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{c.unit}</p>
-        </Card>
+    <Chapter index="02" eyebrow="Forecast" title="Where the price goes from here." lede={interpretation}>
+      <div className="grid gap-12 lg:grid-cols-[auto_1fr] lg:items-center">
+        <div className="flex items-center gap-5">
+          <DirIcon className="size-12 shrink-0" style={{ color }} strokeWidth={1.5} />
+          <div>
+            <p className="display-serif text-7xl leading-none tabular-nums sm:text-8xl" style={{ color }}>
+              {fmtPct(change)}
+            </p>
+            <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.24em] text-muted-foreground">
+              Expected change · {horizon}
+            </p>
+          </div>
+        </div>
+        <div className="lg:border-l lg:border-border/60 lg:pl-12">
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Expected range</p>
+          <div className="relative mt-8 h-10 max-w-xl">
+            <div className="absolute inset-x-0 top-1/2 h-px -translate-y-1/2 bg-border" />
+            <div
+              className="absolute top-1/2 h-1 -translate-y-1/2 rounded-full"
+              style={{ left: `${place(low)}%`, width: `${place(high) - place(low)}%`, background: color, opacity: 0.4 }}
+            />
+            <div
+              className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background"
+              style={{ left: `${place(change)}%`, background: color }}
+            />
+            <span className="absolute -bottom-1 left-0 font-mono text-xs tabular-nums text-muted-foreground">{fmtPct(low)}</span>
+            <span className="absolute -bottom-1 right-0 font-mono text-xs tabular-nums text-muted-foreground">{fmtPct(high)}</span>
+          </div>
+          <div className="mt-10">
+            <ExplainButton
+              onExplain={onExplain}
+              label="How we forecast"
+              payload={{
+                title: "Forecast basis",
+                body: interpretation,
+                citations:
+                  report?.drivers.slice(0, 3).flatMap((driver) => driver.evidence_ids) ??
+                  selectedDrivers(c, config).slice(0, 2).map((driver) => driver.sourceId ?? driver.label),
+              }}
+            />
+          </div>
+        </div>
       </div>
     </Chapter>
   )
@@ -527,6 +726,29 @@ function buildForkedPriceData(c: Commodity, activeScenario: WhatIfScenarioConfig
   return data
 }
 
+function buildAgentPriceData(c: Commodity, paths: AgentPricePath[]) {
+  const history = c.series.slice(-80).map((point) => ({
+    date: point.date,
+    history: point.value,
+    base: null as number | null,
+    upside: null as number | null,
+    downside: null as number | null,
+  }))
+  const byDate = new Map<string, { date: string; history: number | null; base: number | null; upside: number | null; downside: number | null }>()
+  history.forEach((point) => byDate.set(point.date, point))
+
+  paths.forEach((path) => {
+    const key = path.graph_line_key === "upside" || path.graph_line_key === "downside" ? path.graph_line_key : "base"
+    path.graph_points.forEach((point) => {
+      const row = byDate.get(point.date) ?? { date: point.date, history: null, base: null, upside: null, downside: null }
+      row[key] = point.value
+      byDate.set(point.date, row)
+    })
+  })
+
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date))
+}
+
 function PriceWhatIf({
   c,
   config,
@@ -536,85 +758,200 @@ function PriceWhatIf({
   config: ReportConfig
   onExplain: (payload: ExplainPayload) => void
 }) {
-  const [activeId, setActiveId] = useState(config.whatIfScenarios[0]?.id ?? "base")
-  const activeScenario = config.whatIfScenarios.find((scenario) => scenario.id === activeId) ?? config.whatIfScenarios[0]
-  const data = useMemo(() => buildForkedPriceData(c, activeScenario), [c, activeScenario])
-  const score = scenarioScore(c, activeScenario)
-  const action = actionFromScore(score)
+  const report = agentReport(config)
+  const agentPaths = report?.price_paths ?? []
+  const fallbackScenarios = config.whatIfScenarios
+  const [activeId, setActiveId] = useState(agentPaths[0]?.id ?? fallbackScenarios[0]?.id ?? "base")
+  const activeAgentPath = agentPaths.find((path) => path.id === activeId) ?? agentPaths[0]
+  const activeScenario = fallbackScenarios.find((scenario) => scenario.id === activeId) ?? fallbackScenarios[0]
+  const data = agentPaths.length > 0 ? buildAgentPriceData(c, agentPaths) : buildForkedPriceData(c, activeScenario)
   const today = c.series.at(-1)?.date
   const directionColor = c.change30d >= 0 ? "var(--positive)" : "var(--negative)"
+  const activeKey = activeAgentPath?.graph_line_key ?? activeId
+  const scenarioItems = agentPaths.length > 0 ? agentPaths : fallbackScenarios
+
+  const lineColorFor = (key: string) =>
+    key === "upside" ? "var(--positive)" : key === "downside" ? "var(--negative)" : "var(--cala)"
 
   return (
-    <Chapter eyebrow="03 · Price + Scenario" title="Price outlook under the selected scenario." icon={LineChartIcon}>
-      <div className="grid gap-6 xl:grid-cols-[1.4fr_0.6fr]">
-        <Card className="h-[520px] border-border/70 bg-card/45 p-5">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={data} margin={{ top: 18, right: 28, bottom: 24, left: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.07)" vertical={false} />
-              <XAxis dataKey="date" tick={{ fill: "#9a9a97", fontSize: 11 }} minTickGap={36} />
-              <YAxis tick={{ fill: "#9a9a97", fontSize: 11 }} width={70} />
-              <Tooltip
-                contentStyle={{ background: "#141416", border: "1px solid #2a2a2d", borderRadius: 6 }}
-              />
-              <Legend />
-              {today ? <ReferenceLine x={today} stroke="#f7f6f3" strokeDasharray="4 4" label="Today" /> : null}
-              <Line type="monotone" dataKey="history" dot={false} stroke={directionColor} strokeWidth={3} connectNulls />
-              <Line type="monotone" dataKey="base" dot={false} stroke="var(--cala)" strokeWidth={activeId === "base" ? 4 : 2} strokeOpacity={activeId === "base" ? 1 : 0.35} connectNulls isAnimationActive />
-              <Line type="monotone" dataKey="upside" dot={false} stroke="var(--positive)" strokeWidth={activeId === "upside" ? 4 : 2} strokeOpacity={activeId === "upside" ? 1 : 0.35} connectNulls isAnimationActive />
-              <Line type="monotone" dataKey="downside" dot={false} stroke="var(--negative)" strokeWidth={activeId === "downside" ? 4 : 2} strokeOpacity={activeId === "downside" ? 1 : 0.35} connectNulls isAnimationActive />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
+    <Chapter
+      index="03"
+      eyebrow="Price paths"
+      title="How the price could play out."
+      lede="Three forward paths from today's spot, branched on the assumptions that move this market."
+    >
+      <div className="h-[clamp(170px,24vh,340px)]">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={{ top: 16, right: 16, bottom: 4, left: 0 }}>
+            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+            <XAxis dataKey="date" tick={{ fill: "#7d7d7a", fontSize: 11 }} minTickGap={48} axisLine={false} tickLine={false} />
+            <YAxis
+              tick={{ fill: "#7d7d7a", fontSize: 11 }}
+              width={56}
+              axisLine={false}
+              tickLine={false}
+              domain={[(min: number) => Math.floor(min * 0.97), (max: number) => Math.ceil(max * 1.03)]}
+            />
+            <Tooltip contentStyle={{ background: "#141416", border: "1px solid #2a2a2d", borderRadius: 6, fontSize: 12 }} />
+            {today ? <ReferenceLine x={today} stroke="#5a5a5d" strokeDasharray="3 3" /> : null}
+            <Line type="monotone" dataKey="history" dot={false} stroke={directionColor} strokeWidth={2.5} connectNulls />
+            <Line type="monotone" dataKey="base" dot={false} stroke="var(--cala)" strokeWidth={activeKey === "base" ? 3.5 : 1.5} strokeOpacity={activeKey === "base" ? 1 : 0.3} connectNulls isAnimationActive />
+            <Line type="monotone" dataKey="upside" dot={false} stroke="var(--positive)" strokeWidth={activeKey === "upside" ? 3.5 : 1.5} strokeOpacity={activeKey === "upside" ? 1 : 0.3} connectNulls isAnimationActive />
+            <Line type="monotone" dataKey="downside" dot={false} stroke="var(--negative)" strokeWidth={activeKey === "downside" ? 3.5 : 1.5} strokeOpacity={activeKey === "downside" ? 1 : 0.3} connectNulls isAnimationActive />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/60">
+        Solid line · price to date. Dashed · today. Select a path below.
+      </p>
 
-        <div className="space-y-3">
-          <Card className="border-border/70 bg-card/45 p-5">
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Scenario result</p>
-            <div className="mt-4 flex items-center justify-between gap-4">
-              <span className="font-mono text-6xl">{score}</span>
-              <ActionBadge action={action} size="lg" />
-            </div>
-          </Card>
-          {config.whatIfScenarios.map((scenario) => {
-            const supporting = evidenceFor(c, scenario.evidenceIds)
-            return (
-              <div
-                key={scenario.id}
-                className={cn(
-                  "rounded-lg border p-4 transition",
-                  activeId === scenario.id ? "border-cala bg-cala/10" : "border-border/70 bg-card/35 hover:border-foreground/30",
-                )}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setActiveId(scenario.id)}
-                    className="min-w-0 flex-1 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <span className="block text-sm font-medium">{scenario.label}</span>
-                    <span className="mt-1 block text-xs text-muted-foreground">
-                      {scenario.driverIds.map((id) => c.drivers.find((driver) => driver.id === id)?.label).filter(Boolean).join(", ")}
-                    </span>
-                  </button>
-                  <ExplainButton
-                    onExplain={onExplain}
-                    payload={{
-                      title: scenario.label,
-                      body: `This branch changes the score according to the selected driver weights. Supporting drivers are ${scenario.driverIds.map((id) => c.drivers.find((driver) => driver.id === id)?.label).filter(Boolean).join(" and ")}, so the projected path moves with those assumptions.`,
-                      citations: supporting.map((item) => item.source),
-                    }}
-                  />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {supporting.map((item) => (
-                    <span key={item.id} className="rounded-xs border border-border px-1.5 py-px text-[11px] text-cala">
-                      {item.source}
-                    </span>
-                  ))}
-                </div>
+      <div className="mt-6 grid gap-x-10 gap-y-6 sm:grid-cols-3">
+        {scenarioItems.map((scenario) => {
+          const isAgent = "graph_points" in scenario
+          const driverIds = isAgent ? scenario.driver_ids : scenario.driverIds
+          const evidenceIds = isAgent ? scenario.evidence_ids : scenario.evidenceIds
+          const supporting = isAgent ? agentEvidenceFor(report, evidenceIds) : evidenceFor(c, evidenceIds)
+          const lineKey = isAgent ? scenario.graph_line_key : scenario.id
+          const lineColor = lineColorFor(lineKey)
+          const active = activeId === scenario.id
+          const bigValue = isAgent ? fmtPct(scenario.expected_change_pct) : String(scenarioScore(c, scenario))
+          const bigCaption = isAgent ? "expected change" : "result score"
+          const summaryText = isAgent
+            ? scenario.summary
+            : driverIds.map((id) => c.drivers.find((driver) => driver.id === id)?.label).filter(Boolean).join(", ")
+          return (
+            <div
+              key={scenario.id}
+              className={cn("relative flex flex-col gap-2.5 pt-6 transition", active ? "opacity-100" : "opacity-50 hover:opacity-80")}
+            >
+              <span className="absolute inset-x-0 top-0 h-[2px]" style={{ background: active ? lineColor : "var(--border)" }} />
+              <button type="button" onClick={() => setActiveId(scenario.id)} className="flex flex-col items-start gap-3 text-left">
+                <span className="inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.18em]" style={{ color: lineColor }}>
+                  <span className="size-2 rounded-full" style={{ background: lineColor }} />
+                  {scenario.label}
+                </span>
+                <span className="display-serif text-3xl leading-none tabular-nums">{bigValue}</span>
+                <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">{bigCaption}</span>
+                <span className="mt-1 text-sm leading-6 text-muted-foreground">{summaryText}</span>
+              </button>
+              <div className="mt-auto flex items-center justify-between gap-3 pt-2">
+                <SourceLine sources={supporting.map((item) => item.source)} />
+                <ExplainButton
+                  onExplain={onExplain}
+                  payload={{
+                    title: scenario.label,
+                    body: isAgent
+                      ? scenario.explainability?.plain_language ?? scenario.summary
+                      : `This branch reweights the call around ${driverIds.map((id) => c.drivers.find((driver) => driver.id === id)?.label).filter(Boolean).join(" and ")}.`,
+                    citations: supporting.map((item) => item.source),
+                  }}
+                />
               </div>
-            )
-          })}
-        </div>
+            </div>
+          )
+        })}
+      </div>
+    </Chapter>
+  )
+}
+
+type DriverRow = {
+  id: string
+  label: string
+  ratio: number
+  pct: number
+  meta: string
+  explanation: string
+  refs: string[]
+}
+
+function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
+  const report = agentReport(config)
+  let columns: Array<{ dir: "up" | "down"; items: DriverRow[] }>
+
+  if (report) {
+    const max = Math.max(...report.drivers.map((driver) => Math.abs(driver.impact_score)), 0.01)
+    columns = (["up", "down"] as const).map((dir) => ({
+      dir,
+      items: report.drivers
+        .filter((driver) => agentDriverDirection(driver) === dir)
+        .map((driver) => ({
+          id: driver.id,
+          label: driver.label,
+          ratio: Math.abs(driver.impact_score) / max,
+          pct: Math.round(Math.abs(driver.impact_score) * 100),
+          meta: `${Math.round(driver.confidence * 100)}% confidence · ${driver.impact} impact`,
+          explanation: driver.explanation,
+          refs: driver.evidence_ids,
+        })),
+    }))
+  } else {
+    const drivers = selectedDrivers(c, config)
+    const max = Math.max(...drivers.map((driver) => driver.weight), 0.01)
+    columns = (["up", "down"] as const).map((dir) => ({
+      dir,
+      items: drivers
+        .filter((driver) => driver.direction === dir)
+        .map((driver) => ({
+          id: driver.id,
+          label: driver.label,
+          ratio: driver.weight / max,
+          pct: Math.round(driver.weight * 100),
+          meta: driver.category,
+          explanation: driver.rationale,
+          refs: driver.sourceId ? [driver.sourceId] : [],
+        })),
+    }))
+  }
+
+  return (
+    <Chapter
+      index="04"
+      eyebrow="Drivers"
+      title="The forces moving the price."
+      lede="What pushes this market up, and what pulls it back — ranked by weight on the call."
+    >
+      <div className="grid gap-x-12 gap-y-14 lg:grid-cols-2 lg:divide-x lg:divide-border/60">
+        {columns.map((col) => (
+          <div key={col.dir} className={cn(col.dir === "down" ? "lg:pl-12" : "lg:pr-12")}>
+            <div className="flex items-center gap-2.5">
+              {col.dir === "up" ? (
+                <TrendingUp className="size-5 text-positive" />
+              ) : (
+                <TrendingDown className="size-5 text-negative" />
+              )}
+              <h3 className={cn("font-mono text-xs uppercase tracking-[0.24em]", col.dir === "up" ? "text-positive" : "text-negative")}>
+                {col.dir === "up" ? "Upward pressure" : "Downward pressure"}
+              </h3>
+            </div>
+            <ul className="mt-8 space-y-8">
+              {col.items.map((item) => (
+                <li key={item.id}>
+                  <div className="flex items-baseline justify-between gap-4">
+                    <span className="display-serif text-2xl leading-snug">{item.label}</span>
+                    <span
+                      className="shrink-0 display-serif text-xl tabular-nums"
+                      style={{ color: col.dir === "up" ? "var(--positive)" : "var(--negative)" }}
+                    >
+                      {item.pct}%
+                    </span>
+                  </div>
+                  <div className="mt-3 h-[3px] w-full overflow-hidden rounded-full bg-border/50">
+                    <div
+                      className="h-full rounded-full"
+                      style={{ width: `${item.ratio * 100}%`, background: col.dir === "up" ? "var(--positive)" : "var(--negative)" }}
+                    />
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    {item.explanation}
+                    <Refs ids={item.refs} />
+                  </p>
+                  <p className="mt-1.5 font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground/60">{item.meta}</p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </div>
     </Chapter>
   )
@@ -623,130 +960,130 @@ function PriceWhatIf({
 function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }) {
   const selected = selectedDrivers(c, config)
   const top = selected[0] ?? c.drivers[0]
-  const oneMonthAction = c.change30d < -1 ? "wait" : c.recommendation.action
+  const oneMonthAction = (c.change30d < -1 ? "wait" : c.recommendation.action) as Action
   const sixMonthAction = c.recommendation.action
   const disagree = oneMonthAction !== sixMonthAction
+  const columns = [
+    { label: "1M", change: c.change30d, action: oneMonthAction, confidence: Math.max(42, Math.round(c.recommendation.confidence * 100 - 8)), driver: top },
+    { label: "6M", change: c.change30d * 1.6, action: sixMonthAction, confidence: Math.round(c.recommendation.confidence * 100), driver: selected[1] ?? top },
+  ]
 
   return (
-    <Chapter eyebrow="04 · Horizon comparison" title="Short-term versus six-month recommendation." icon={GitCompareArrows}>
-      <div className="grid gap-5 lg:grid-cols-2">
-        {[
-          { label: "1M", change: c.change30d, action: oneMonthAction, confidence: Math.max(42, Math.round(c.recommendation.confidence * 100 - 8)), driver: top },
-          { label: "6M", change: c.change30d * 1.6, action: sixMonthAction, confidence: Math.round(c.recommendation.confidence * 100), driver: selected[1] ?? top },
-        ].map((column) => (
-          <Card key={column.label} className="border-border/70 bg-card/45 p-6">
-            <div className="flex items-center justify-between gap-3">
-              <p className="font-mono text-5xl">{column.label}</p>
-              <ActionBadge action={column.action} size="lg" />
+    <Chapter
+      index="05"
+      eyebrow="Horizon"
+      title="Tactical now, strategic later."
+      lede="The same market read across two clocks — near-term ordering versus the six-month hedge."
+    >
+      <div className="grid gap-12 lg:grid-cols-2 lg:divide-x lg:divide-border/60">
+        {columns.map((col, index) => {
+          const accent = actionArc[col.action]
+          return (
+            <div key={col.label} className={cn(index === 1 ? "lg:pl-12" : "lg:pr-12")}>
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="display-serif text-6xl leading-none">{col.label}</p>
+                <p className="display-serif text-3xl uppercase" style={{ color: accent }}>
+                  {ACTION_LABELS[col.action]}
+                </p>
+              </div>
+              <dl className="mt-10 space-y-6">
+                <div className="flex items-baseline justify-between gap-6 border-b border-border/50 pb-3">
+                  <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Trend</dt>
+                  <dd className={cn("display-serif text-3xl tabular-nums", col.change >= 0 ? "text-positive" : "text-negative")}>
+                    {fmtPct(col.change)}
+                  </dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-6 border-b border-border/50 pb-3">
+                  <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Confidence</dt>
+                  <dd className="display-serif text-3xl tabular-nums">{col.confidence}%</dd>
+                </div>
+                <div className="flex items-baseline justify-between gap-6">
+                  <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Top driver</dt>
+                  <dd className="max-w-[60%] text-right text-sm leading-6 text-foreground/85">{col.driver?.label}</dd>
+                </div>
+              </dl>
             </div>
-            <dl className="mt-8 grid gap-5 sm:grid-cols-3">
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Trend</dt>
-                <dd className={cn("mt-2 font-mono text-3xl", column.change >= 0 ? "text-positive" : "text-negative")}>
-                  {fmtPct(column.change)}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Confidence</dt>
-                <dd className="mt-2 font-mono text-3xl">{column.confidence}%</dd>
-              </div>
-              <div>
-                <dt className="text-xs uppercase tracking-wide text-muted-foreground">Top driver</dt>
-                <dd className="mt-2 text-sm leading-6 text-foreground/85">{column.driver?.label}</dd>
-              </div>
-            </dl>
-          </Card>
-        ))}
+          )
+        })}
       </div>
       {disagree ? (
-        <div className="mt-5 rounded-lg border border-hedge/40 bg-hedge/10 p-4 text-sm text-hedge">
-          Short-term and six-month actions disagree. Use the one-month view for tactical ordering and the six-month view for hedge exposure.
-        </div>
+        <p className="mt-12 border-l-2 border-hedge pl-4 text-sm leading-6 text-hedge">
+          Short-term and six-month calls disagree — use the one-month view for tactical ordering and the six-month view for hedge exposure.
+        </p>
       ) : null}
     </Chapter>
   )
 }
 
-function MapChapter({
-  c,
-  onExplain,
-}: {
-  c: Commodity
-  onExplain: (payload: ExplainPayload) => void
-}) {
-  const points = REPORT_MAP_POINTS[c.id]
-  return (
-    <Chapter eyebrow="05 · Map" title="Geographic exposure and supply-chain risk points." icon={MapPin}>
-      <ReportMaps c={c} />
-      <div className="mt-5 grid gap-3 md:grid-cols-3">
-        {points.map((point, index) => {
-          const driver = c.drivers[index % c.drivers.length]
-          const source = driver?.sourceId ? c.evidence.find((item) => item.id === driver.sourceId) : undefined
-          return (
-            <button
-              key={point.id}
-              type="button"
-              onClick={() =>
-                onExplain({
-                  title: point.label,
-                  body: `${point.description ?? "This location is part of the route map."} It is connected to ${driver?.label}, so it is shown as a geographic risk anchor for the brief.`,
-                  citations: [source?.source ?? driver?.sourceId ?? point.label],
-                })
-              }
-              className="rounded-lg border border-border/70 bg-card/35 p-4 text-left hover:border-foreground/30"
-            >
-              <MapPin className="size-4 text-cala" />
-              <p className="mt-3 text-sm font-medium">{point.label}</p>
-              <p className="mt-1 text-xs leading-5 text-muted-foreground">{point.description}</p>
-              {driver ? (
-                <p className="mt-3 text-[11px] text-cala">
-                  Driver: {driver.label}
-                  {source ? ` · ${source.source}` : ""}
-                </p>
-              ) : null}
-            </button>
-          )
-        })}
-      </div>
-    </Chapter>
-  )
-}
+const MAP_CENTER: [number, number] = [16, 45]
+const MAP_ACTIVE_CENTER: [number, number] = [-9, 50]
 
-function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
-  const drivers = selectedDrivers(c, config)
-  const max = Math.max(...drivers.map((driver) => driver.weight), 0.01)
+function MapChapter({ c }: { c: Commodity }) {
+  const points = REPORT_MAP_POINTS[c.id]
+  const sectionRef = useRef<HTMLElement | null>(null)
+  const [inView, setInView] = useState(false)
+
+  useEffect(() => {
+    let frame = 0
+    const check = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const el = sectionRef.current
+        if (!el) return
+        const rect = el.getBoundingClientRect()
+        const vh = window.innerHeight
+        const visible = Math.min(rect.bottom, vh) - Math.max(rect.top, 0)
+        setInView(visible > vh * 0.4)
+      })
+    }
+    check()
+    window.addEventListener("scroll", check, { passive: true })
+    window.addEventListener("resize", check)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener("scroll", check)
+      window.removeEventListener("resize", check)
+    }
+  }, [])
+
   return (
-    <Chapter eyebrow="06 · Drivers" title="Main upward and downward price drivers." icon={TrendingUp}>
-      <div className="grid gap-5 lg:grid-cols-2">
-        {(["up", "down"] as const).map((direction) => (
-          <Card key={direction} className="border-border/70 bg-card/45 p-6">
-            <h3 className={cn("flex items-center gap-2 text-lg font-medium", direction === "up" ? "text-positive" : "text-negative")}>
-              {direction === "up" ? <TrendingUp className="size-5" /> : <TrendingDown className="size-5" />}
-              {direction === "up" ? "Upward pressure" : "Downward pressure"}
-            </h3>
-            <div className="mt-5 space-y-5">
-              {drivers.filter((driver) => driver.direction === direction).map((driver) => (
-                <div key={driver.id}>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm font-medium">{driver.label}</span>
-                    <span className="font-mono text-xs text-muted-foreground">{Math.round(driver.weight * 100)}%</span>
-                  </div>
-                  <div className="mt-2 h-2 rounded-full bg-background">
-                    <div
-                      className={cn("h-full rounded-full", direction === "up" ? "bg-positive" : "bg-negative")}
-                      style={{ width: `${(driver.weight / max) * 100}%` }}
-                    />
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">
-                    {driver.rationale} {driver.sourceId ? <span className="text-cala">#{driver.sourceId}</span> : null}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </Card>
-        ))}
+    <section ref={sectionRef} className="report-chapter relative flex min-h-screen snap-start items-center overflow-hidden">
+      <div className="absolute inset-0 brightness-[1.45]">
+        <GeoMap center={MAP_CENTER} zoom={2.7} points={points} activeCenter={MAP_ACTIVE_CENTER} activeZoom={3.8} heatmap active={inView} interactive={false} className="size-full" />
       </div>
-    </Chapter>
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/95 via-background/45 to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/80 to-transparent" />
+
+      <div className="relative z-10 flex w-full px-5 py-16 sm:px-8 lg:px-20">
+        <div
+          className={cn(
+            "w-full max-w-md rounded-xl border border-border/60 bg-background/55 p-7 shadow-2xl backdrop-blur-2xl transition-all duration-[900ms] ease-out sm:p-9",
+            inView ? "translate-y-0 opacity-100 blur-0" : "translate-y-8 opacity-0 blur-sm",
+          )}
+        >
+          <Eyebrow index="06" label="Map" />
+          <h2 className="display-serif mt-6 text-4xl leading-[1.04] sm:text-5xl">Where the exposure sits.</h2>
+          <p className="mt-5 text-base leading-7 text-muted-foreground">
+            The regions and logistics points this brief is anchored to.
+          </p>
+          <ol className="mt-7 divide-y divide-border/50">
+            {points.map((point, index) => (
+              <li key={point.id} className="flex gap-4 py-3.5 first:pt-0 last:pb-0">
+                <span className="display-serif text-lg tabular-nums text-muted-foreground/40">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div>
+                  <p className="display-serif text-lg leading-snug">{point.label}</p>
+                  {point.description ? (
+                    <p className="mt-0.5 text-sm leading-6 text-muted-foreground">{point.description}</p>
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
   )
 }
 
@@ -755,6 +1092,21 @@ function newsImpact(c: Commodity, item: Evidence) {
   const sign = driver?.direction === "up" ? 1 : driver?.direction === "down" ? -1 : 0
   const score = driver ? Math.round(sign * driver.weight * 30) : 0
   return { score, driver }
+}
+
+function ImpactNumber({ score }: { score: number }) {
+  return (
+    <div className="flex items-start gap-3 md:flex-col md:items-end md:text-right">
+      <span
+        className="display-serif text-5xl tabular-nums"
+        style={{ color: score > 0 ? "var(--positive)" : score < 0 ? "var(--negative)" : undefined }}
+      >
+        {score > 0 ? "+" : ""}
+        {score}
+      </span>
+      <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Impact</span>
+    </div>
+  )
 }
 
 function NewsChapter({
@@ -766,45 +1118,115 @@ function NewsChapter({
   config: ReportConfig
   onExplain: (payload: ExplainPayload) => void
 }) {
+  const report = agentReport(config)
+  if (report) {
+    const driverByEvidence = new Map<string, AgentReportDriver>()
+    report.drivers.forEach((driver) => {
+      driver.evidence_ids.forEach((id) => driverByEvidence.set(id, driver))
+    })
+    const items = report.evidence
+      .filter((item) => config.news.includes(item.id) || !c.evidence.some((candidate) => candidate.id === item.id))
+      .sort((a, b) => Math.abs(driverByEvidence.get(b.id)?.impact_score ?? 0) - Math.abs(driverByEvidence.get(a.id)?.impact_score ?? 0))
+
+    return (
+      <Chapter
+        index="07"
+        eyebrow="Evidence"
+        title="The signals behind the call."
+        lede="Ranked by estimated impact on the recommendation."
+      >
+        <div className="divide-y divide-border/60 border-t border-border/60">
+          {items.map((item) => {
+            const driver = driverByEvidence.get(item.id)
+            const tone =
+              driver?.direction === "upward_price_pressure" ? "Bullish" : driver?.direction === "downward_price_pressure" ? "Bearish" : "Neutral"
+            const toneColor =
+              driver?.direction === "downward_price_pressure" ? "text-negative" : driver?.direction === "upward_price_pressure" ? "text-positive" : "text-muted-foreground"
+            const score = Math.round((driver?.impact_score ?? 0) * 100)
+            return (
+              <article key={item.id} className="grid gap-5 py-7 md:grid-cols-[1fr_auto] md:gap-10">
+                <div>
+                  <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                    <span className="text-foreground">{item.source}</span> · {fmtDate(item.date)} ·{" "}
+                    {reliabilityLabel[item.reliability]} reliability · <span className={toneColor}>{tone}</span>
+                  </p>
+                  <h3 className="display-serif mt-3 text-2xl leading-snug sm:text-3xl">{item.title}</h3>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{item.signal_extracted}</p>
+                  <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2">
+                    {item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 font-mono text-[11px] uppercase tracking-[0.18em] text-cala/80 transition hover:text-foreground"
+                      >
+                        Open source <ExternalLink className="size-3" />
+                      </a>
+                    ) : null}
+                    <ExplainButton
+                      onExplain={onExplain}
+                      label="Why it matters"
+                      payload={{
+                        title: item.title,
+                        body: driver ? `${item.signal_extracted} Connected driver: ${driver.label}. ${driver.explanation}` : item.signal_extracted,
+                        citations: [item.source, item.id],
+                      }}
+                    />
+                  </div>
+                </div>
+                <ImpactNumber score={score} />
+              </article>
+            )
+          })}
+        </div>
+      </Chapter>
+    )
+  }
+
   const selected = new Set(config.news ?? c.evidence.map((item) => item.id))
   const items = c.evidence
     .filter((item) => selected.has(item.id))
     .sort((a, b) => Math.abs(newsImpact(c, b).score) - Math.abs(newsImpact(c, a).score))
   return (
-    <Chapter eyebrow="07 · Relevant news" title="Evidence ranked by estimated recommendation impact." icon={Newspaper}>
-      <div className="space-y-3">
+    <Chapter
+      index="07"
+      eyebrow="Evidence"
+      title="The signals behind the call."
+      lede="Ranked by estimated impact on the recommendation."
+    >
+      <div className="divide-y divide-border/60 border-t border-border/60">
         {items.map((item) => {
           const impact = newsImpact(c, item)
           const tone = impact.driver?.direction === "up" ? "Bullish" : impact.driver?.direction === "down" ? "Bearish" : "Neutral"
+          const toneColor =
+            impact.driver?.direction === "down" ? "text-negative" : impact.driver?.direction === "up" ? "text-positive" : "text-muted-foreground"
           return (
-            <Card key={item.id} className="border-border/70 bg-card/45 p-5">
-              <div className="grid gap-5 md:grid-cols-[1fr_auto]">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-medium text-foreground">{item.source}</span>
-                    <span>{fmtDate(item.date)}</span>
-                    <span>{reliabilityLabel[item.reliability]}</span>
-                    <span className={impact.driver?.direction === "down" ? "text-negative" : impact.driver?.direction === "up" ? "text-positive" : "text-muted-foreground"}>
-                      {tone}
-                    </span>
-                  </div>
-                  <h3 className="mt-2 text-xl font-medium">{item.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-muted-foreground">{item.excerpt}</p>
-                </div>
-                <div className="flex items-center gap-3 md:flex-col md:items-end">
-                  <span className="font-mono text-3xl">{impact.score > 0 ? "+" : ""}{impact.score}</span>
-                  <span className="text-xs text-muted-foreground">score impact</span>
+            <article key={item.id} className="grid gap-5 py-7 md:grid-cols-[1fr_auto] md:gap-10">
+              <div>
+                <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
+                  <span className="text-foreground">{item.source}</span> · {fmtDate(item.date)} ·{" "}
+                  {reliabilityLabel[item.reliability]} reliability · <span className={toneColor}>{tone}</span>
+                </p>
+                <h3 className="display-serif mt-3 text-2xl leading-snug sm:text-3xl">{item.title}</h3>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">{item.excerpt}</p>
+                <div className="mt-4">
                   <ExplainButton
                     onExplain={onExplain}
+                    label="Why it matters"
                     payload={{
                       title: item.title,
-                      body: `This row is ranked by the builder impact slider and its linked driver. ${impact.driver ? `${impact.driver.label} is the connected driver, and its rationale is: ${impact.driver.rationale}` : "No explicit driver link is available, so the item is treated as contextual evidence."}`,
+                      body: `This row is ranked by the builder impact slider and its linked driver. ${
+                        impact.driver
+                          ? `${impact.driver.label} is the connected driver, and its rationale is: ${impact.driver.rationale}`
+                          : "No explicit driver link is available, so the item is treated as contextual evidence."
+                      }`,
                       citations: [item.source, item.id],
                     }}
                   />
                 </div>
               </div>
-            </Card>
+              <ImpactNumber score={impact.score} />
+            </article>
           )
         })}
       </div>
@@ -812,53 +1234,99 @@ function NewsChapter({
   )
 }
 
-function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
-  const drivers = selectedDrivers(c, config)
-  const sources = Array.from(new Set(c.evidence.map((item) => item.source).concat("Cala")))
+type MonitorEntry = { item: string; why: string; refs: string[] }
+
+function fallbackMonitor(c: Commodity, config: ReportConfig): MonitorEntry[] {
+  const entries: MonitorEntry[] = selectedDrivers(c, config)
+    .slice(0, 3)
+    .map((driver) => ({ item: driver.label, why: driver.rationale, refs: driver.sourceId ? [driver.sourceId] : [] }))
+  entries.unshift({
+    item: config.countdownEvent.label,
+    why: `Due ${fmtDate(config.countdownEvent.date)}. If ${config.countdownEvent.outcome}, the call may shift to ${config.countdownEvent.shiftTo.toUpperCase()}.`,
+    refs: [],
+  })
+  return entries
+}
+
+function WhatToMonitor({ c, config }: { c: Commodity; config: ReportConfig }) {
+  const report = agentReport(config)
+  const entries: MonitorEntry[] = report?.what_to_monitor?.length
+    ? report.what_to_monitor.map((m) => ({ item: m.item, why: m.why, refs: m.evidence_source_ids }))
+    : fallbackMonitor(c, config)
+
   return (
-    <Chapter eyebrow="08 · Audit" title="Report inputs, sources, and audit trail." icon={ClipboardCheck}>
-      <Card className="border-border/70 bg-card/45 p-6">
-        <dl className="grid gap-5 md:grid-cols-3">
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Generated by</dt>
-            <dd className="mt-2 text-lg">{config.generatedBy}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Generated at</dt>
-            <dd className="mt-2 font-mono text-sm">{config.generatedAt}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Horizon</dt>
-            <dd className="mt-2 text-lg">{config.horizon}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Report id</dt>
-            <dd className="mt-2 font-mono text-sm">{config.reportId}</dd>
-          </div>
-          <div>
-            <dt className="text-xs uppercase tracking-wide text-muted-foreground">Version hash</dt>
-            <dd className="mt-2 font-mono text-sm">{config.versionHash}</dd>
-          </div>
-        </dl>
-        <div className="mt-8 grid gap-6 lg:grid-cols-2">
-          <div>
-            <h3 className="text-sm font-medium">Factors taken into account</h3>
-            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
-              {drivers.map((driver) => <li key={driver.id}>- {driver.label}</li>)}
-            </ul>
-          </div>
-          <div>
-            <h3 className="text-sm font-medium">Sources consulted</h3>
-            <div className="mt-3 flex flex-wrap gap-2">
-              {sources.map((source) => (
-                <span key={source} className="rounded-sm border border-border px-2 py-1 text-xs text-cala">
-                  {source}
-                </span>
-              ))}
+    <Chapter
+      index="08"
+      eyebrow="What to monitor"
+      title="What could change the call."
+      lede="The handful of signals worth watching between now and the next review."
+    >
+      <ol className="divide-y divide-border/60 border-t border-border/60">
+        {entries.map((entry, index) => (
+          <li key={index} className="grid gap-4 py-7 md:grid-cols-[auto_1fr] md:gap-8">
+            <span className="display-serif text-4xl tabular-nums text-muted-foreground/40">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <div>
+              <p className="display-serif text-2xl leading-snug">{entry.item}</p>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                {entry.why}
+                <Refs ids={entry.refs} />
+              </p>
             </div>
+          </li>
+        ))}
+      </ol>
+    </Chapter>
+  )
+}
+
+function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
+  const report = agentReport(config)
+  const drivers = selectedDrivers(c, config)
+  const sources = Array.from(new Set((report?.evidence.map((item) => item.source) ?? c.evidence.map((item) => item.source)).concat("Cala")))
+  const executivePdf = config.agentResponse?.executive_pdf
+  const factors = report?.drivers.map((driver) => driver.label) ?? drivers.map((driver) => driver.label)
+  const meta = [
+    { label: "Generated by", value: config.generatedBy },
+    { label: "Generated at", value: fmtDate(report?.generated_at ?? config.generatedAt) },
+    { label: "Horizon", value: report?.horizon_label ?? config.horizon },
+    { label: "Report id", value: config.reportId },
+    { label: "Version hash", value: config.versionHash },
+  ]
+
+  return (
+    <Chapter index="09" eyebrow="Audit" title="Inputs, sources, and trail." lede="Everything this brief was built from.">
+      <div className="grid gap-12 lg:grid-cols-2">
+        <dl className="divide-y divide-border/60 border-t border-border/60">
+          {meta.map((row) => (
+            <div key={row.label} className="flex items-baseline justify-between gap-6 py-4">
+              <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">{row.label}</dt>
+              <dd className="text-right font-mono text-sm tabular-nums text-foreground/90">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+        <div className="space-y-10">
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Factors taken into account</p>
+            <p className="mt-4 text-base leading-7 text-foreground/85">{factors.join("  ·  ")}</p>
           </div>
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Sources consulted</p>
+            <p className="mt-4 text-base leading-7 text-foreground/85">{sources.join("  ·  ")}</p>
+          </div>
+          {executivePdf?.status === "ready" ? (
+            <a
+              href={executivePdf.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 border-b border-cala/40 pb-1 font-mono text-[11px] uppercase tracking-[0.18em] text-cala transition hover:border-foreground/60 hover:text-foreground"
+            >
+              <ExternalLink className="size-3.5" /> Open executive PDF
+            </a>
+          ) : null}
         </div>
-      </Card>
+      </div>
     </Chapter>
   )
 }
@@ -941,35 +1409,46 @@ function CinematicReport({
     <div className="report-theme report-enter min-h-screen snap-y snap-mandatory overflow-x-hidden bg-background text-foreground">
       <div className="pointer-events-none fixed inset-x-0 top-0 z-40 flex items-center justify-between px-5 py-5 sm:px-8 lg:px-14">
         {!publicMode ? (
-          <button
+          <motion.button
             type="button"
             onClick={goBack}
-            className="pointer-events-auto inline-flex items-center gap-2 text-foreground transition hover:opacity-60"
+            aria-label="Back"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
+            whileHover={{ scale: 1.12, opacity: 0.7 }}
+            whileTap={{ scale: 0.9 }}
+            className="pointer-events-auto inline-flex items-center justify-center text-foreground"
           >
-            <ArrowLeft className="size-5" strokeWidth={2.75} />
-            <span className="text-sm font-bold uppercase tracking-[0.12em]">Back</span>
-          </button>
+            <ArrowLeft className="size-8" strokeWidth={2.5} />
+          </motion.button>
         ) : (
           <span />
         )}
-        <button
+        <motion.button
           type="button"
           onClick={() => setQrOpen(true)}
-          className="pointer-events-auto inline-flex items-center gap-2 text-foreground transition hover:opacity-60"
+          aria-label="Share"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
+          whileHover={{ scale: 1.12, opacity: 0.7 }}
+          whileTap={{ scale: 0.9 }}
+          className="pointer-events-auto inline-flex items-center justify-center text-foreground"
         >
-          <span className="text-sm font-bold uppercase tracking-[0.12em]">Share</span>
-          <QrCode className="size-5" strokeWidth={2.75} />
-        </button>
+          <QrCode className="size-7" strokeWidth={2.25} />
+        </motion.button>
       </div>
 
       <Cover c={c} config={config} publicMode={publicMode} />
-      <Summary c={c} config={config} onExplain={setExplain} />
-      <DecisionStrip c={c} config={config} />
+      <TheCall c={c} config={config} onExplain={setExplain} />
+      <Forecast c={c} config={config} onExplain={setExplain} />
       <PriceWhatIf c={c} config={config} onExplain={setExplain} />
-      <HorizonComparison c={c} config={config} />
-      <MapChapter c={c} onExplain={setExplain} />
       <DriversChapter c={c} config={config} />
+      <HorizonComparison c={c} config={config} />
+      <MapChapter c={c} />
       <NewsChapter c={c} config={config} onExplain={setExplain} />
+      <WhatToMonitor c={c} config={config} />
       <FooterChapter c={c} config={config} />
       <ExplainPanel payload={explain} onClose={() => setExplain(null)} />
       <QRDialog url={reportUrl(config.reportId)} open={qrOpen} onOpenChange={setQrOpen} />

@@ -1,8 +1,20 @@
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { ArrowUp, Sparkles } from "lucide-react"
 
 export function AskBar() {
   const [value, setValue] = useState("")
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() === "k" && (event.metaKey || event.ctrlKey)) {
+        event.preventDefault()
+        inputRef.current?.focus()
+      }
+    }
+    document.addEventListener("keydown", onKey)
+    return () => document.removeEventListener("keydown", onKey)
+  }, [])
 
   return (
     <div className="pointer-events-none absolute inset-x-0 bottom-0 z-30 bg-gradient-to-t from-background from-50% via-background/90 via-80% to-background/0 px-4 pb-5 pt-12">
@@ -15,6 +27,7 @@ export function AskBar() {
         >
           <Sparkles className="size-4 shrink-0 text-muted-foreground" />
           <input
+            ref={inputRef}
             value={value}
             onChange={(event) => setValue(event.target.value)}
             placeholder="Ask Cales — e.g. “should we buy aluminium?”"

@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from "react-router-dom"
-import { Boxes, ChevronRight, LayoutDashboard, RadioTower } from "lucide-react"
+import { Boxes, ChevronRight, LayoutDashboard } from "lucide-react"
 import {
   Collapsible,
   CollapsibleContent,
@@ -75,12 +75,13 @@ export function AppSidebar() {
                     </SidebarMenuAction>
                   </CollapsibleTrigger>
                   <CollapsibleContent>
-                    <SidebarMenuSub>
+                    <SidebarMenuSub className="mx-0 border-l-0 px-0">
                       {COMMODITIES.map((commodity) => (
                         <SidebarMenuSubItem key={commodity.id}>
                           <SidebarMenuSubButton
                             asChild
                             isActive={pathname === `/c/${commodity.id}`}
+                            className="h-8 translate-x-0 pl-9"
                           >
                             <NavLink to={`/c/${commodity.id}`}>
                               {commodity.name}
@@ -92,28 +93,6 @@ export function AppSidebar() {
                   </CollapsibleContent>
                 </SidebarMenuItem>
               </Collapsible>
-            </SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-
-        {/* Intelligence group */}
-        <SidebarGroup>
-          <SidebarGroupLabel className="h-6 px-2 font-mono text-[10px] uppercase tracking-wide text-sidebar-foreground/55">
-            Intelligence
-          </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.startsWith("/signals")}
-                >
-                  <NavLink to="/signals">
-                    <RadioTower />
-                    <span>Signals</span>
-                  </NavLink>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

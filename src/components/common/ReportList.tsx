@@ -66,7 +66,8 @@ export function ReportList({ c }: { c: Commodity }) {
   const [pageIndex, setPageIndex] = useState(0)
   const rows = useMemo(() => buildReportRows(c), [c])
 
-  const openReport = (reportId: string) => navigate(`/c/${c.id}/reports/${reportId}`)
+  const openReport = (reportId: string) =>
+    navigate(`/c/${c.id}/reports/${reportId}`, { viewTransition: true })
 
   const filteredRows = useMemo(() => {
     const normalized = query.trim().toLowerCase()

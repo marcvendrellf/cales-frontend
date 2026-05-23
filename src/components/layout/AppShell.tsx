@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react"
 import { Outlet } from "react-router-dom"
 import {
   SidebarInset,
@@ -6,25 +5,11 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/layout/AppSidebar"
-import { CommandPalette } from "@/components/command-palette/CommandPalette"
 import { AskBar } from "@/components/command-palette/AskBar"
 import { BreadcrumbProvider } from "@/components/shell/breadcrumb"
 import { Breadcrumbs } from "@/components/shell/Breadcrumbs"
 
 export function AppShell() {
-  const [paletteOpen, setPaletteOpen] = useState(false)
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault()
-        setPaletteOpen((o) => !o)
-      }
-    }
-    document.addEventListener("keydown", onKey)
-    return () => document.removeEventListener("keydown", onKey)
-  }, [])
-
   return (
     <BreadcrumbProvider>
       <SidebarProvider>
@@ -41,7 +26,6 @@ export function AppShell() {
           </main>
           <AskBar />
         </SidebarInset>
-        <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} />
       </SidebarProvider>
     </BreadcrumbProvider>
   )
