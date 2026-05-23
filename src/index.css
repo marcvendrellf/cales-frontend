@@ -1,0 +1,223 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+  Cales theme — Warp-inspired (see DESIGN.md).
+  Warm dark canvas, off-white ink, Inter + DM Mono, tight radii.
+  Marketing brand has no chromatic accent; in-product we add a restrained
+  semantic palette for recommendations (buy/wait/hedge/monitor) and price moves.
+*/
+
+:root {
+  --radius: 0.25rem; /* 4px — Warp {rounded.md} base */
+
+  --background: #2b2622; /* {colors.canvas} */
+  --foreground: #f7f5f0; /* {colors.ink} */
+  --card: #383330; /* {colors.canvas-soft} */
+  --card-foreground: #f7f5f0;
+  --popover: #211d1a;
+  --popover-foreground: #f7f5f0;
+  --primary: #f7f5f0; /* off-white IS the brand primary */
+  --primary-foreground: #2b2622; /* {colors.on-primary} */
+  --secondary: #383330;
+  --secondary-foreground: #f7f5f0;
+  --muted: #383330;
+  --muted-foreground: #aea69c; /* {colors.mute} */
+  --accent: #3f3a36;
+  --accent-foreground: #f7f5f0;
+  --destructive: #d9737a;
+  --border: #3f3a36; /* {colors.hairline} */
+  --input: #3f3a36;
+  --ring: #aea69c;
+
+  /* recommendation semantics */
+  --buy: #74c79a;
+  --buy-foreground: #0f1a14;
+  --wait: #6f9bd1;
+  --wait-foreground: #0c141d;
+  --hedge: #e0b341;
+  --hedge-foreground: #1c1605;
+  --monitor: #aea69c;
+  --monitor-foreground: #1c1916;
+
+  /* price moves */
+  --positive: #74c79a;
+  --negative: #d9737a;
+
+  /* chart series */
+  --chart-1: #74c79a;
+  --chart-2: #e0b341;
+  --chart-3: #6f9bd1;
+  --chart-4: #d99a4e;
+  --chart-5: #b48ead;
+
+  /* Cala partner accent (used sparingly) */
+  --cala: #c9c0ad; /* {colors.body} — warm, on-brand */
+
+  /* sidebar — warm, slightly darker than the canvas */
+  --sidebar: #242019;
+  --sidebar-foreground: #c9c0ad;
+  --sidebar-primary: #f7f5f0;
+  --sidebar-primary-foreground: #2b2622;
+  --sidebar-accent: #383330;
+  --sidebar-accent-foreground: #f7f5f0;
+  --sidebar-border: #3f3a36;
+  --sidebar-ring: #aea69c;
+}
+
+/* App is dark by default; mirror tokens so shadcn .dark utilities resolve. */
+.dark {
+  --background: #2b2622;
+  --foreground: #f7f5f0;
+  --card: #383330;
+  --card-foreground: #f7f5f0;
+  --popover: #211d1a;
+  --popover-foreground: #f7f5f0;
+  --primary: #f7f5f0;
+  --primary-foreground: #2b2622;
+  --secondary: #383330;
+  --secondary-foreground: #f7f5f0;
+  --muted: #383330;
+  --muted-foreground: #aea69c;
+  --accent: #3f3a36;
+  --accent-foreground: #f7f5f0;
+  --destructive: #d9737a;
+  --border: #3f3a36;
+  --input: #3f3a36;
+  --ring: #aea69c;
+  --buy: #74c79a;
+  --buy-foreground: #0f1a14;
+  --wait: #6f9bd1;
+  --wait-foreground: #0c141d;
+  --hedge: #e0b341;
+  --hedge-foreground: #1c1605;
+  --monitor: #aea69c;
+  --monitor-foreground: #1c1916;
+  --positive: #74c79a;
+  --negative: #d9737a;
+  --chart-1: #74c79a;
+  --chart-2: #e0b341;
+  --chart-3: #6f9bd1;
+  --chart-4: #d99a4e;
+  --chart-5: #b48ead;
+  --cala: #c9c0ad;
+  --sidebar: #242019;
+  --sidebar-foreground: #c9c0ad;
+  --sidebar-primary: #f7f5f0;
+  --sidebar-primary-foreground: #2b2622;
+  --sidebar-accent: #383330;
+  --sidebar-accent-foreground: #f7f5f0;
+  --sidebar-border: #3f3a36;
+  --sidebar-ring: #aea69c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-buy: var(--buy);
+  --color-buy-foreground: var(--buy-foreground);
+  --color-wait: var(--wait);
+  --color-wait-foreground: var(--wait-foreground);
+  --color-hedge: var(--hedge);
+  --color-hedge-foreground: var(--hedge-foreground);
+  --color-monitor: var(--monitor);
+  --color-monitor-foreground: var(--monitor-foreground);
+  --color-positive: var(--positive);
+  --color-negative: var(--negative);
+  --color-cala: var(--cala);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) - 1px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  /* Midday typography — Hedvig Letters Sans + Serif; mono mapped to sans (as Midday does). */
+  --font-sans: "Hedvig Letters Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Hedvig Letters Sans", system-ui, -apple-system, sans-serif;
+  --font-serif: "Hedvig Letters Serif", Georgia, "Times New Roman", serif;
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Editorial serif display headings (Midday style) — relaxed tracking. */
+  .display-serif {
+    font-family: var(--font-serif);
+    letter-spacing: -0.01em;
+    font-weight: 400;
+  }
+  /* Web-app feel: keep the default arrow cursor everywhere (never the hand).
+     Buttons still get a visual hover state via their own styles. */
+  a[href],
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="option"],
+  [role="menuitem"],
+  summary,
+  label[for] {
+    cursor: default;
+  }
+}
+
+/* Thin, warm scrollbars to match the terminal aesthetic. */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+}
+
+/* Signal-ticker marquee. */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-marquee {
+  animation: marquee 40s linear infinite;
+}
+.marquee-pause:hover .animate-marquee {
+  animation-play-state: paused;
+}
