@@ -17,6 +17,7 @@ import { Card } from "@/components/ui/card"
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient"
 import { fmtDate } from "@/lib/format"
 import { buildAgentAnalyzeRequest, buildReportConfig, saveReportConfig } from "@/lib/report-config"
+import { getGeneratingStart, onGeneratingDone, startGenerating, stopGenerating } from "@/lib/generating-state"
 import { SCREEN_AGENT_ASK_EVENT, type ScreenAgentAskDetail } from "@/lib/screen-agent"
 import { cn } from "@/lib/utils"
 import type { Commodity } from "@/types"
@@ -105,8 +106,10 @@ export function ReportBuilder({
     sourceReliability: true,
   }))
   const [useDrivers, setUseDrivers] = useState(true)
-  const [news, setNews] = useState<Set<string>>(() => new Set(c.evidence.map((e) => e.id)))
-  const [status, setStatus] = useState<"idle" | "generating">("idle")
+  const [news, setNews] = useState<Set<string>>(() => new Set())
+  const [status, setStatus] = useState<"idle" | "generating">(() =>
+    getGeneratingStart(c.id) ? "generating" : "idle"
+  )
   const [agentStatus, setAgentStatus] = useState<"idle" | "thinking" | "acting">("idle")
   const [agentCursor, setAgentCursor] = useState<{ x: number; y: number; label: string } | null>(null)
 
@@ -196,7 +199,7 @@ export function ReportBuilder({
   async function applyAgentAction(action: UIAgentAction) {
     const nextValue = action.type === "toggle_on" ? true : action.type === "toggle_off" ? false : undefined
     if (action.type === "click" && action.target_id === "generate_report") {
-      await generate()
+      void generate()
       return
     }
     if (action.target_id.startsWith("context_")) {
@@ -274,8 +277,11 @@ export function ReportBuilder({
     return () => window.removeEventListener(SCREEN_AGENT_ASK_EVENT, onAsk)
   })
 
+  useEffect(() => onGeneratingDone(c.id, () => setStatus("idle")), [c.id])
+
   async function generate() {
     if (!canGenerate) return
+    startGenerating(c.id)
     setStatus("generating")
     onGenerateStart?.()
 
@@ -298,9 +304,15 @@ export function ReportBuilder({
         agentResponse,
       }
       saveReportConfig(finalConfig)
-      toast.success("Report generated", { description: `${c.name} analysis sent to the agent` })
-      navigate(`/c/${c.id}/reports/${finalConfig.reportId}`)
+      stopGenerating(c.id)
+      const reportPath = `/c/${c.id}/reports/${finalConfig.reportId}`
+      toast.success(`${c.name} report ready`, {
+        description: "Your procurement analysis is complete.",
+        action: { label: "View report", onClick: () => navigate(reportPath) },
+        duration: 12000,
+      })
     } catch (error) {
+      stopGenerating(c.id)
       const message = error instanceof Error ? error.message : "Unknown error"
       toast.error("Agent request failed", { description: message })
       setStatus("idle")

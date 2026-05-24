@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { FileText, Info, ListChecks } from "lucide-react"
 import { useCommodity } from "@/api/hooks"
@@ -13,6 +13,7 @@ import { ReportList } from "@/components/common/ReportList"
 import { PriceChart } from "@/components/common/PriceChart"
 import { TrendArrow } from "@/components/common/TrendArrow"
 import { AnimatedNumber } from "@/components/common/AnimatedNumber"
+import { getGeneratingStart, onGeneratingDone } from "@/lib/generating-state"
 import type { Commodity, CommodityId } from "@/types"
 
 function GeneralInfo({ c }: { c: Commodity }) {
@@ -42,7 +43,11 @@ function GeneralInfo({ c }: { c: Commodity }) {
 function Loaded({ c }: { c: Commodity }) {
   const navigate = useNavigate()
   const location = useLocation()
-  const [generatingStartedAt, setGeneratingStartedAt] = useState<number | null>(null)
+  const [generatingStartedAt, setGeneratingStartedAt] = useState<number | null>(
+    () => getGeneratingStart(c.id)
+  )
+
+  useEffect(() => onGeneratingDone(c.id, () => setGeneratingStartedAt(null)), [c.id])
   const isCreateReport =
     location.pathname.endsWith("/create-report") || location.pathname.endsWith("/report")
   const isReportList =
@@ -81,7 +86,7 @@ function Loaded({ c }: { c: Commodity }) {
           </div>
         </div>
         <div className="text-right">
-          <div className="font-mono text-3xl tabular-nums">
+          <div className={`font-mono text-3xl tabular-nums ${c.trend === "up" ? "text-positive" : c.trend === "down" ? "text-negative" : ""}`}>
             <AnimatedNumber value={c.spot} digits={c.spot < 100 ? 2 : 0} />
             <span className="ml-1.5 text-sm text-muted-foreground">{c.unit}</span>
           </div>

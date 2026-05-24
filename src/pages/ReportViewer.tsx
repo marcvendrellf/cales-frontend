@@ -32,7 +32,7 @@ import {
   YAxis,
 } from "recharts"
 import { ScoreGauge } from "@/components/common/ScoreGauge"
-import { Map as GeoMap } from "@/components/ui/map"
+import { Map as GeoMap, type MapPoint } from "@/components/ui/map"
 import { Button } from "@/components/ui/button"
 import {
   Dialog,
@@ -754,7 +754,6 @@ function TheCall({
   const action = actionFromAgent(rec?.action ?? c.recommendation.action)
   const score = rec?.risk_score ?? c.recommendation.score
   const opportunity = rec?.opportunity_score
-  const confidence = Math.round((rec?.confidence ?? c.recommendation.confidence) * 100)
   const horizon = report?.horizon_label ?? config.horizon
   const spot = report?.market_context.spot_price?.value ?? c.spot
   const unit = report?.market_context.spot_price?.unit ?? c.unit
@@ -781,10 +780,8 @@ function TheCall({
         <div className="space-y-10">
           <p className="max-w-2xl text-xl leading-8 text-foreground/85">{rationale}</p>
           <div className="flex flex-wrap items-start gap-x-12 gap-y-8 border-t border-border/60 pt-9">
-            <Figure label="Confidence" value={`${confidence}%`} />
             <Figure label="Horizon" value={horizon} />
             <Figure label="Spot" value={fmtNumber(spot)} sub={unit} />
-            {opportunity != null ? <Figure label="Opportunity" value={Math.round(opportunity)} /> : null}
           </div>
           <div className="flex flex-wrap items-center justify-between gap-4 gap-y-3">
             <p className="max-w-xl text-sm leading-6 text-muted-foreground">
@@ -1074,7 +1071,13 @@ function PriceWhatIf({
                 <span className="mt-1 text-sm leading-6 text-muted-foreground">{summaryText}</span>
               </button>
               <div className="mt-auto flex items-center justify-between gap-3 pt-2">
-                <SourceLine sources={supporting.map((item) => item.source)} />
+                {supporting.some((item) => item.url) ? (
+                  <a href="https://cala.ai" target="_blank" rel="noopener noreferrer" className="font-mono text-[11px] uppercase tracking-[0.16em] text-white/70 transition hover:text-white">
+                    Sources · Cala.ai
+                  </a>
+                ) : (
+                  <SourceLine sources={supporting.map((item) => item.source)} />
+                )}
                 <ExplainButton
                   onExplain={onExplain}
                   payload={{
@@ -1202,8 +1205,8 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
   const sixMonthAction = c.recommendation.action
   const disagree = oneMonthAction !== sixMonthAction
   const columns = [
-    { label: "1M", change: c.change30d, action: oneMonthAction, confidence: Math.max(42, Math.round(c.recommendation.confidence * 100 - 8)), driver: top },
-    { label: "6M", change: c.change30d * 1.6, action: sixMonthAction, confidence: Math.round(c.recommendation.confidence * 100), driver: selected[1] ?? top },
+    { label: "1M", change: c.change30d, action: oneMonthAction, driver: top },
+    { label: "6M", change: c.change30d * 1.6, action: sixMonthAction, driver: selected[1] ?? top },
   ]
 
   return (
@@ -1231,10 +1234,6 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
                     {fmtPct(col.change)}
                   </dd>
                 </div>
-                <div className="flex items-baseline justify-between gap-6 border-b border-border/50 pb-3">
-                  <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Confidence</dt>
-                  <dd className="display-serif text-3xl tabular-nums">{col.confidence}%</dd>
-                </div>
                 <div className="flex items-baseline justify-between gap-6">
                   <dt className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">Top driver</dt>
                   <dd className="max-w-[60%] text-right text-sm leading-6 text-foreground/85">{col.driver?.label}</dd>
@@ -1255,8 +1254,21 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
 
 const MAP_CENTER: [number, number] = [16, 45]
 
-function MapChapter({ c }: { c: Commodity }) {
-  const points = REPORT_MAP_POINTS[c.id]
+function MapChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
+  const report = agentReport(config)
+  const points = useMemo<MapPoint[]>(() => {
+    const agentPlaces = report?.affected_places
+    if (agentPlaces && agentPlaces.length > 0) {
+      return agentPlaces.map((place) => ({
+        id: place.name,
+        label: place.name,
+        description: place.description,
+        coordinates: [place.lng, place.lat] as [number, number],
+        tone: place.impact === "positive" ? "positive" : place.impact === "negative" ? "warning" : "muted",
+      }))
+    }
+    return REPORT_MAP_POINTS[c.id]
+  }, [report, c.id])
   // Frame the fly-in on the European cluster, excluding far-flung macro points (e.g. China).
   const framePoints = useMemo(
     () => points.filter((point) => point.coordinates[0] >= -25 && point.coordinates[0] <= 45),
@@ -1264,6 +1276,7 @@ function MapChapter({ c }: { c: Commodity }) {
   )
   const sectionRef = useRef<HTMLElement | null>(null)
   const [inView, setInView] = useState(false)
+  const [selectedPoint, setSelectedPoint] = useState<string | null>(null)
 
   useEffect(() => {
     let frame = 0
@@ -1291,7 +1304,7 @@ function MapChapter({ c }: { c: Commodity }) {
   return (
     <section ref={sectionRef} className="report-chapter relative flex min-h-screen snap-start items-center overflow-hidden">
       <div className="absolute inset-0 brightness-[1.45]">
-        <GeoMap center={MAP_CENTER} zoom={2.7} points={points} framePoints={framePoints} heatmap active={inView} interactive={false} className="size-full" />
+        <GeoMap center={MAP_CENTER} zoom={2.7} points={points} framePoints={framePoints} heatmap active={inView} interactive={false} selectedPoint={selectedPoint} className="size-full" />
       </div>
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/95 via-background/45 to-transparent" />
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/80 to-transparent" />
@@ -1310,16 +1323,26 @@ function MapChapter({ c }: { c: Commodity }) {
           </p>
           <ol className="mt-7 divide-y divide-border/50">
             {points.map((point, index) => (
-              <li key={point.id} className="flex gap-4 py-3.5 first:pt-0 last:pb-0">
-                <span className="display-serif text-lg tabular-nums text-muted-foreground/40">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <p className="display-serif text-lg leading-snug">{point.label}</p>
-                  {point.description ? (
-                    <p className="mt-0.5 text-sm leading-6 text-muted-foreground">{point.description}</p>
-                  ) : null}
-                </div>
+              <li key={point.id}>
+                <button
+                  type="button"
+                  onClick={() => setSelectedPoint((prev) => (prev === point.id ? null : point.id))}
+                  className={cn(
+                    "flex w-full gap-4 py-3.5 text-left transition-all duration-300 hover:opacity-100 first:pt-0 last:pb-0",
+                    selectedPoint && selectedPoint !== point.id ? "opacity-35" : "opacity-100",
+                    selectedPoint === point.id && "translate-x-1",
+                  )}
+                >
+                  <span className="display-serif text-lg tabular-nums text-muted-foreground/40">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <p className="display-serif text-lg leading-snug">{point.label}</p>
+                    {point.description ? (
+                      <p className="mt-0.5 text-sm leading-6 text-muted-foreground">{point.description}</p>
+                    ) : null}
+                  </div>
+                </button>
               </li>
             ))}
           </ol>
@@ -1555,6 +1578,20 @@ function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
 
   return (
     <Chapter index="09" eyebrow="Audit" title="Inputs, sources, and trail." lede="Everything this brief was built from.">
+      <div className="mb-10">
+        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">News consulted</p>
+        <div className="mt-4 divide-y divide-border/60 border-t border-border/60">
+          {evidence.map((item) => (
+            <div key={item.id} className="py-3">
+              <p className="text-sm leading-6 text-foreground/85">{item.title}</p>
+              <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
+                <span className={cn(item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span>
+                {item.date ? ` · ${fmtOptionalDate(item.date)}` : ""} · {reliabilityLabel[item.reliability]} reliability
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
       <div className="grid gap-12 lg:grid-cols-2">
         <dl className="divide-y divide-border/60 border-t border-border/60">
           {meta.map((row) => (
@@ -1581,20 +1618,6 @@ function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
                 Inputs used: {contextUsed.join(", ")}.
               </p>
             ) : null}
-          </div>
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">News consulted</p>
-            <div className="mt-4 space-y-2.5">
-              {evidence.map((item) => (
-                <div key={item.id} className="border-l border-border/70 pl-3">
-                  <p className="text-sm leading-6 text-foreground/85">{item.title}</p>
-                  <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                    <span className={cn(item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span>
-                    {" · "}{fmtOptionalDate(item.date)} · {reliabilityLabel[item.reliability]} reliability
-                  </p>
-                </div>
-              ))}
-            </div>
           </div>
           {executivePdf?.status === "ready" ? (
             <a
@@ -1746,7 +1769,7 @@ function CinematicReport({
       <PriceWhatIf c={c} config={config} onExplain={setExplain} />
       <DriversChapter c={c} config={config} />
       <HorizonComparison c={c} config={config} />
-      <MapChapter c={c} />
+      <MapChapter c={c} config={config} />
       <NewsChapter c={c} config={config} onExplain={setExplain} />
       <WhatToMonitor c={c} config={config} />
       <FooterChapter c={c} config={config} />

@@ -73,6 +73,14 @@ export interface AgentExecutivePdf {
   size_bytes?: number
 }
 
+export interface AgentAffectedPlace {
+  name: string
+  description: string
+  lat: number
+  lng: number
+  impact: "positive" | "negative" | "neutral"
+}
+
 export interface AgentWebsiteReport {
   schema_version: string
   output_type: "website_report"
@@ -88,6 +96,7 @@ export interface AgentWebsiteReport {
   drivers: AgentReportDriver[]
   evidence: AgentReportEvidence[]
   what_to_monitor?: AgentMonitorItem[]
+  affected_places?: AgentAffectedPlace[]
 }
 
 export interface AgentReportRecommendation {

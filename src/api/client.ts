@@ -24,7 +24,7 @@ function delay<T>(value: T, ms = 220): Promise<T> {
 
 // The agent runs a multi-turn LLM loop; analyze can take minutes, so timeouts are generous.
 const ANALYZE_TIMEOUT_MS = 240_000
-const AGENT_TIMEOUT_MS = 180_000
+const AGENT_TIMEOUT_MS = 240_000
 
 function joinUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`

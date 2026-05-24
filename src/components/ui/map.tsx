@@ -27,6 +27,8 @@ type MapProps = {
   framePoints?: MapPoint[]
   /** Allow user drag/zoom. Defaults to true; pass false for a cosmetic hero map. */
   interactive?: boolean
+  /** Fly to this point id when it changes. */
+  selectedPoint?: string | null
 }
 
 const TONE_WEIGHT: Record<NonNullable<MapPoint["tone"]>, number> = {
@@ -59,6 +61,7 @@ export function Map({
   active,
   framePoints,
   interactive = true,
+  selectedPoint,
 }: MapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -220,6 +223,15 @@ export function Map({
     const retry = window.setTimeout(run, 450)
     return () => window.clearTimeout(retry)
   }, [active, points, center, zoom, framePoints])
+
+  useEffect(() => {
+    if (!selectedPoint) return
+    const map = mapRef.current
+    if (!map) return
+    const point = points.find((p) => p.id === selectedPoint)
+    if (!point) return
+    map.flyTo({ center: point.coordinates, zoom: 5.5, duration: 1400, curve: 1.2, essential: true })
+  }, [selectedPoint, points])
 
   return (
     <div

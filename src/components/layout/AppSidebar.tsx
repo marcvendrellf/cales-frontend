@@ -61,7 +61,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              <Collapsible defaultOpen={reportsActive} className="group/collapsible">
+              <Collapsible defaultOpen className="group/collapsible">
                 <SidebarMenuItem>
                   <SidebarMenuButton asChild isActive={reportsActive}>
                     <NavLink to="/reports">
