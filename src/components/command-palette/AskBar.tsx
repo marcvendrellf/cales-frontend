@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { AnimatePresence, motion } from "motion/react"
 import { ArrowUp, Loader2, Sparkles, X } from "lucide-react"
 import { api } from "@/api/client"
@@ -21,27 +21,70 @@ function formatElapsed(totalSeconds: number) {
 
 type Message = { role: "user" | "assistant"; text: string }
 
-function AssistantMessage({ text }: { text: string }) {
+const MESSAGE_IN = {
+  initial: { opacity: 0, y: 8, filter: "blur(4px)" },
+  animate: { opacity: 1, y: 0, filter: "blur(0px)" },
+  transition: { duration: 0.35, ease: [0.16, 1, 0.3, 1] as const },
+}
+
+/** Reveal `text` character-by-character. Bounded so long answers don't crawl:
+ *  each tick reveals more chars as the text grows, finishing in ~2s max. */
+function useTypewriter(text: string) {
+  const [shown, setShown] = useState("")
+  useEffect(() => {
+    if (!text) {
+      setShown("")
+      return
+    }
+    setShown(text.slice(0, 1))
+    let i = 1
+    const step = Math.max(1, Math.ceil(text.length / 140))
+    const id = window.setInterval(() => {
+      i = Math.min(text.length, i + step)
+      setShown(text.slice(0, i))
+      if (i >= text.length) window.clearInterval(id)
+    }, 16)
+    return () => window.clearInterval(id)
+  }, [text])
+  return { shown, done: shown.length >= text.length }
+}
+
+function AssistantMessage({ text, onType }: { text: string; onType?: () => void }) {
+  const { shown, done } = useTypewriter(text)
+
+  // Keep the chat pinned to the bottom as the answer types out.
+  useEffect(() => {
+    onType?.()
+  }, [shown, onType])
+
   return (
-    <div className="flex items-start gap-2.5">
+    <motion.div className="flex items-start gap-2.5" {...MESSAGE_IN}>
       <div className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-cala/15 ring-1 ring-cala/30">
         <Sparkles className="size-3 text-cala" />
       </div>
       <div className="min-w-0 flex-1 space-y-1 pt-0.5">
         <p className="text-[11px] font-medium text-cala">Cales</p>
-        <div className="text-sm leading-6 text-foreground/90 whitespace-pre-wrap">{text}</div>
+        <div className="text-sm leading-6 text-foreground/90 whitespace-pre-wrap">
+          {shown}
+          {!done ? (
+            <span
+              aria-hidden
+              className="ml-0.5 inline-block h-3.5 w-[2px] translate-y-0.5 animate-pulse rounded-full bg-cala/80 align-middle"
+            />
+          ) : null}
+        </div>
       </div>
-    </div>
+    </motion.div>
   )
 }
 
 function UserMessage({ text }: { text: string }) {
   return (
-    <div className="flex justify-end">
+    <motion.div className="flex justify-end" {...MESSAGE_IN}>
       <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-foreground/10 px-3.5 py-2.5 text-sm leading-6 text-foreground ring-1 ring-white/[0.06]">
         {text}
       </div>
-    </div>
+    </motion.div>
   )
 }
 
@@ -61,11 +104,15 @@ export function AskBar() {
     return () => window.clearInterval(id)
   }, [submitting])
 
-  useEffect(() => {
+  const scrollToBottom = useCallback(() => {
     if (chatRef.current) {
       chatRef.current.scrollTop = chatRef.current.scrollHeight
     }
-  }, [messages, submitting])
+  }, [])
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages, submitting, scrollToBottom])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -181,7 +228,7 @@ export function AskBar() {
               <div ref={chatRef} className="max-h-80 overflow-y-auto px-4 py-4 space-y-5">
                 {messages.map((msg, i) =>
                   msg.role === "assistant" ? (
-                    <AssistantMessage key={i} text={msg.text} />
+                    <AssistantMessage key={i} text={msg.text} onType={scrollToBottom} />
                   ) : (
                     <UserMessage key={i} text={msg.text} />
                   )
