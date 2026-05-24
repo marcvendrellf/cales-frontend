@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query"
 import { motion, type Variants } from "motion/react"
 import Lenis from "lenis"
 import { QRCodeSVG } from "qrcode.react"
+import { useTheme } from "next-themes"
 import {
   ArrowDownRight,
   ArrowLeft,
@@ -15,7 +16,9 @@ import {
   Download,
   ExternalLink,
   Info,
+  Moon,
   QrCode,
+  Sun,
   TrendingDown,
   TrendingUp,
   X,
@@ -532,7 +535,7 @@ function SourceLine({ sources, className }: { sources: string[]; className?: str
       Sources ·{" "}
       {unique.map((source, index) => (
         <span key={source}>
-          <span className={cn(source.toLowerCase().includes("cala") && "text-white")}>{source}</span>
+          <span className={cn(source.toLowerCase().includes("cala") && "text-cala")}>{source}</span>
           {index < unique.length - 1 ? "  /  " : ""}
         </span>
       ))}
@@ -546,14 +549,14 @@ function SourceDetails({ refs, className }: { refs: EvidenceReference[]; classNa
     <div className={cn("mt-2 space-y-1.5", className)}>
       {refs.map((ref) => (
         <div key={ref.id} className="text-xs leading-5 text-muted-foreground">
-          <span className={cn("font-mono uppercase tracking-[0.14em] text-muted-foreground/70", ref.source.toLowerCase().includes("cala") && "text-white")}>
+          <span className={cn("font-mono uppercase tracking-[0.14em] text-muted-foreground/70", ref.source.toLowerCase().includes("cala") && "text-cala")}>
             {ref.source}
           </span>
           {ref.date ? <span className="font-mono text-muted-foreground/50"> · {fmtOptionalDate(ref.date)}</span> : null}
           {ref.title ? (
             <span className="ml-2 text-foreground/85">
               {referenceHref(ref) ? (
-                <a href={referenceHref(ref)} target="_blank" rel="noopener noreferrer" className="transition hover:text-white">
+                <a href={referenceHref(ref)} target="_blank" rel="noopener noreferrer" className="transition hover:text-foreground">
                   {ref.title}
                 </a>
               ) : (
@@ -676,13 +679,13 @@ function ExplainPanel({
               <div className="mt-3 space-y-3">
                 {payload.evidenceRefs.map((ref) => (
                   <div key={ref.id} className="rounded-md border border-border/70 bg-background/35 p-3">
-                    <p className={cn("font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70", ref.source.toLowerCase().includes("cala") && "text-white")}>
+                    <p className={cn("font-mono text-[10px] uppercase tracking-[0.16em] text-muted-foreground/70", ref.source.toLowerCase().includes("cala") && "text-cala")}>
                       {ref.source}{ref.date ? ` · ${fmtOptionalDate(ref.date)}` : ""}
                     </p>
                     {ref.title ? (
                       <p className="mt-1.5 text-sm leading-5 text-foreground/90">
                         {referenceHref(ref) ? (
-                          <a href={referenceHref(ref)} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-1.5 transition hover:text-white">
+                          <a href={referenceHref(ref)} target="_blank" rel="noopener noreferrer" className="inline-flex items-start gap-1.5 transition hover:text-foreground">
                             <span>{ref.title}</span>
                             <ExternalLink className="mt-0.5 size-3 shrink-0" />
                           </a>
@@ -1071,7 +1074,7 @@ function PriceWhatIf({
               </button>
               <div className="mt-auto flex items-center justify-between gap-3 pt-2">
                 {supporting.some((item) => item.url) ? (
-                  <a href="https://cala.ai" target="_blank" rel="noopener noreferrer" className="font-mono text-[11px] uppercase tracking-[0.16em] text-white/70 transition hover:text-white">
+                  <a href="https://cala.ai" target="_blank" rel="noopener noreferrer" className="font-mono text-[11px] uppercase tracking-[0.16em] text-cala/80 transition hover:text-foreground">
                     Sources · Cala.ai
                   </a>
                 ) : (
@@ -1302,11 +1305,11 @@ function MapChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
 
   return (
     <section ref={sectionRef} className="report-chapter relative flex min-h-screen snap-start items-center overflow-hidden">
-      <div className="absolute inset-0 brightness-[1.45]">
+      <div className="cales-map-fx absolute inset-0">
         <GeoMap center={MAP_CENTER} zoom={2.7} points={points} framePoints={framePoints} heatmap active={inView} interactive={false} selectedPoint={selectedPoint} className="size-full" />
       </div>
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/95 via-background/45 to-transparent" />
-      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/80 to-transparent" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-background/60 via-background/20 to-transparent dark:from-background/95 dark:via-background/45" />
+      <div className="pointer-events-none absolute inset-x-0 bottom-0 h-28 bg-gradient-to-t from-background/40 to-transparent dark:from-background/80" />
 
       <div className="relative z-10 flex w-full px-5 py-16 sm:px-8 lg:px-20">
         <div
@@ -1408,7 +1411,7 @@ function NewsChapter({
               <article key={item.id} className="grid gap-5 py-7 md:grid-cols-[1fr_auto] md:gap-10">
                 <div>
                   <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                    <span className={cn("text-foreground", item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span> · {fmtOptionalDate(item.date)} ·{" "}
+                    <span className={cn("text-foreground", item.source.toLowerCase().includes("cala") && "text-cala")}>{item.source}</span> · {fmtOptionalDate(item.date)} ·{" "}
                     {reliabilityLabel[item.reliability]} reliability · <span className={tone.className}>{tone.label}</span>
                   </p>
                   <h3 className="display-serif mt-3 text-2xl leading-snug sm:text-3xl">{item.title}</h3>
@@ -1466,7 +1469,7 @@ function NewsChapter({
             <article key={item.id} className="grid gap-5 py-7 md:grid-cols-[1fr_auto] md:gap-10">
               <div>
                 <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-muted-foreground">
-                  <span className={cn("text-foreground", item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span> · {fmtDate(item.date)} ·{" "}
+                  <span className={cn("text-foreground", item.source.toLowerCase().includes("cala") && "text-cala")}>{item.source}</span> · {fmtDate(item.date)} ·{" "}
                   {reliabilityLabel[item.reliability]} reliability · <span className={toneColor}>{tone}</span>
                 </p>
                 <h3 className="display-serif mt-3 text-2xl leading-snug sm:text-3xl">{item.title}</h3>
@@ -1584,7 +1587,7 @@ function FooterChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
             <div key={item.id} className="py-3">
               <p className="text-sm leading-6 text-foreground/85">{item.title}</p>
               <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted-foreground/70">
-                <span className={cn(item.source.toLowerCase().includes("cala") && "text-white")}>{item.source}</span>
+                <span className={cn(item.source.toLowerCase().includes("cala") && "text-cala")}>{item.source}</span>
                 {item.date ? ` · ${fmtOptionalDate(item.date)}` : ""} · {reliabilityLabel[item.reliability]} reliability
               </p>
             </div>
@@ -1693,6 +1696,10 @@ function CinematicReport({
   const sectionNavigation = useReportSectionNavigation(!qrOpen && !explain, lenisRef)
   const executivePdfUrl = reportPdfDownloadUrl(config)
   const executivePdfFileName = config.agentResponse?.executive_pdf?.file_name ?? `${config.commodityId}-executive-report.pdf`
+  const { resolvedTheme, setTheme } = useTheme()
+  const [themeMounted, setThemeMounted] = useState(false)
+  useEffect(() => setThemeMounted(true), [])
+  const isDark = themeMounted && resolvedTheme === "dark"
 
   const goBack = () => {
     const run = () => {
@@ -1731,6 +1738,23 @@ function CinematicReport({
           <span />
         )}
         <div className="pointer-events-auto flex items-center gap-5">
+          <motion.button
+            type="button"
+            onClick={() => setTheme(isDark ? "light" : "dark")}
+            aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, delay: 0.25, ease: "easeOut" }}
+            whileHover={{ scale: 1.12, opacity: 0.7 }}
+            whileTap={{ scale: 0.9 }}
+            className="inline-flex items-center justify-center text-foreground"
+          >
+            {isDark ? (
+              <Sun className="size-7" strokeWidth={2.25} />
+            ) : (
+              <Moon className="size-7" strokeWidth={2.25} />
+            )}
+          </motion.button>
           <motion.a
             href={executivePdfUrl}
             download={executivePdfFileName}

@@ -6,18 +6,11 @@ import {
   XAxis,
   YAxis,
 } from "recharts"
-import { ExternalLink, X } from "lucide-react"
 import { useCommodities, useSignals } from "@/api/hooks"
 import { WarehouseChart } from "@/components/common/WarehouseChart"
+import { NewsModal, signalToNews } from "@/components/common/NewsModal"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
 import { Card, CardContent } from "@/components/ui/card"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
 import {
   ChartContainer,
   ChartLegend,
@@ -29,7 +22,7 @@ import {
   NewsListSkeleton,
   OverviewChartSkeleton,
 } from "@/components/common/PageSkeletons"
-import { fmtDate, impactColor, reliabilityLabel, relativeTime } from "@/lib/format"
+import { impactColor, relativeTime } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Commodity, MarketSignal } from "@/types"
 
@@ -133,146 +126,6 @@ function RelativeTrendTooltip({
   )
 }
 
-const reliabilityStyle = {
-  high: "text-buy border-buy/30",
-  medium: "text-hedge border-hedge/30",
-  low: "text-monitor border-monitor/30",
-} as const
-
-function signalSearchUrl(signal: MarketSignal) {
-  return `https://www.google.com/search?q=${encodeURIComponent(`${signal.source} ${signal.headline}`)}`
-}
-
-function SignalPreviewDialog({
-  signal,
-  open,
-  closing,
-  onOpenChange,
-  onRequestClose,
-}: {
-  signal: MarketSignal | null
-  open: boolean
-  closing: boolean
-  onOpenChange: (open: boolean) => void
-  onRequestClose: () => void
-}) {
-  if (!signal) return null
-
-  const isCala = signal.source.toLowerCase().includes("cala")
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent
-        forceMount
-        showCloseButton={false}
-        className={cn(
-          "h-[82vh] max-h-[760px] w-[88vw] max-w-6xl gap-0 overflow-hidden p-0 sm:max-w-6xl",
-          closing && "animate-out fade-out-0 zoom-out-95 duration-200",
-        )}
-      >
-        <button
-          type="button"
-          onPointerDown={(event) => event.stopPropagation()}
-          onClick={(event) => {
-            event.stopPropagation()
-            onRequestClose()
-          }}
-          className="absolute right-4 top-4 z-10 inline-flex size-9 items-center justify-center rounded-md border border-border bg-background/50 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <X className="size-4" />
-          <span className="sr-only">Close</span>
-        </button>
-        <div className="border-b border-border/70 bg-card/60 px-7 py-4">
-          <DialogHeader className="gap-2 text-left">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className={cn("text-sm font-semibold", isCala ? "text-cala" : "text-foreground")}>
-                {signal.source}
-              </span>
-              <span className={cn("rounded-xs border px-1.5 py-px text-[10px] uppercase tracking-wide", reliabilityStyle[signal.reliability])}>
-                {reliabilityLabel[signal.reliability]}
-              </span>
-              <span className={cn("font-mono text-[11px] uppercase", impactColor[signal.impact])}>
-                {signal.impact}
-              </span>
-              <span className="font-mono text-[11px] text-muted-foreground">
-                {fmtDate(signal.time)}
-              </span>
-            </div>
-            <DialogTitle className="display-serif max-w-5xl pr-12 text-left text-2xl leading-tight">
-              {signal.headline}
-            </DialogTitle>
-          </DialogHeader>
-        </div>
-
-        <div className="grid min-h-0 flex-1 overflow-y-auto md:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-6 px-7 py-7 lg:px-10">
-            <DialogDescription asChild>
-              <div className="max-w-5xl space-y-6">
-                <p className="text-xl leading-9 text-foreground/90">{signal.detail}</p>
-              </div>
-            </DialogDescription>
-
-            <section className="max-w-5xl rounded-lg border border-border/60 bg-background/35 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Market signal
-              </p>
-              <h3 className="mt-3 text-2xl font-medium text-foreground">{signal.category}</h3>
-              <p className="mt-3 text-lg leading-8 text-muted-foreground">
-                This signal is tagged to {signal.commodityId === "macro" ? "macro exposure" : signal.commodityId} and is currently classified as {signal.impact}.
-              </p>
-              <div className="mt-5 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-                <span className="rounded-xs border border-border px-2 py-1">{signal.category}</span>
-                <span>{reliabilityLabel[signal.reliability]} reliability</span>
-                <span>{relativeTime(signal.time)}</span>
-              </div>
-            </section>
-
-            <section className="max-w-5xl rounded-lg border border-border/60 bg-background/35 p-5">
-              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                Why this matters
-              </p>
-              <p className="mt-3 text-lg leading-8 text-muted-foreground">
-                This news item updates one of the live market signals used on the dashboard. Use it to understand whether the latest pressure is bullish, bearish, or neutral before opening a commodity report.
-              </p>
-            </section>
-          </div>
-
-          <aside className="border-t border-border/70 bg-background/25 px-7 py-7 md:border-l md:border-t-0">
-            <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-              Source details
-            </p>
-            <dl className="mt-4 space-y-4">
-              <div>
-                <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Publisher</dt>
-                <dd className={cn("mt-1 text-sm font-medium", isCala ? "text-cala" : "text-foreground")}>
-                  {signal.source}
-                </dd>
-              </div>
-              <div>
-                <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Reliability</dt>
-                <dd className="mt-1 text-sm font-medium">{reliabilityLabel[signal.reliability]}</dd>
-              </div>
-              <div>
-                <dt className="text-[11px] uppercase tracking-wide text-muted-foreground">Published</dt>
-                <dd className="mt-1 font-mono text-sm">{fmtDate(signal.time)}</dd>
-              </div>
-            </dl>
-            <a
-              href={signalSearchUrl(signal)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-card px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-foreground/[0.04]"
-            >
-              <ExternalLink className="size-3.5" />
-              Open in new tab
-            </a>
-          </aside>
-        </div>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function NewsItem({
   signal,
   onSelect,
@@ -315,21 +168,9 @@ export function Overview() {
   const { data: signals, isLoading: signalsLoading } = useSignals()
   const [selectedSignal, setSelectedSignal] = useState<MarketSignal | null>(null)
   const [signalOpen, setSignalOpen] = useState(false)
-  const [signalClosing, setSignalClosing] = useState(false)
   useBreadcrumbs([{ label: "Overview" }])
 
   const relativeTrendData = useMemo(() => makeRelativeTrendData(data ?? []), [data])
-
-  const closeSignal = () => {
-    document
-      .querySelector('[role="dialog"]')
-      ?.classList.add("animate-out", "fade-out-0", "zoom-out-95", "duration-200")
-    window.setTimeout(() => {
-      setSignalOpen(false)
-      setSignalClosing(false)
-      setSelectedSignal(null)
-    }, 200)
-  }
 
   return (
     <div className="space-y-6">
@@ -444,7 +285,6 @@ export function Overview() {
               signal={signal}
               onSelect={(nextSignal) => {
                 setSelectedSignal(nextSignal)
-                setSignalClosing(false)
                 setSignalOpen(true)
               }}
             />
@@ -452,19 +292,10 @@ export function Overview() {
         )}
       </section>
 
-      <SignalPreviewDialog
-        signal={selectedSignal}
-        open={signalOpen || signalClosing}
-        closing={signalClosing}
-        onOpenChange={(open) => {
-          if (open) {
-            setSignalClosing(false)
-            setSignalOpen(true)
-            return
-          }
-          closeSignal()
-        }}
-        onRequestClose={closeSignal}
+      <NewsModal
+        news={selectedSignal ? signalToNews(selectedSignal) : null}
+        open={signalOpen}
+        onOpenChange={setSignalOpen}
       />
     </div>
   )

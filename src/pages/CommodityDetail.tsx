@@ -16,9 +16,18 @@ import { AnimatedNumber } from "@/components/common/AnimatedNumber"
 import { getGeneratingStart, onGeneratingDone } from "@/lib/generating-state"
 import type { Commodity, CommodityId } from "@/types"
 
+// In the app/dashboard, price direction follows the standard market convention:
+// up = green (positive), down = red (negative). Derived from the displayed series
+// so the color always matches what the chart visually shows. (Only the cinematic
+// report inverts this to the buyer's perspective, where a price rise is "bad".)
+function priceIsUp(c: Commodity): boolean {
+  const s = c.series
+  if (s.length > 1) return s[s.length - 1].value >= s[0].value
+  return c.trend === "up"
+}
+
 function GeneralInfo({ c }: { c: Commodity }) {
-  const sparkColor =
-    c.trend === "up" ? "positive" : c.trend === "down" ? "negative" : "muted-foreground"
+  const sparkColor = priceIsUp(c) ? "positive" : "negative"
 
   return (
     <div className="space-y-6">
@@ -86,13 +95,13 @@ function Loaded({ c }: { c: Commodity }) {
           </div>
         </div>
         <div className="text-right">
-          <div className={`font-mono text-3xl tabular-nums ${c.trend === "up" ? "text-positive" : c.trend === "down" ? "text-negative" : ""}`}>
+          <div className={`font-mono text-3xl tabular-nums ${priceIsUp(c) ? "text-positive" : "text-negative"}`}>
             <AnimatedNumber value={c.spot} digits={c.spot < 100 ? 2 : 0} />
             <span className="ml-1.5 text-sm text-muted-foreground">{c.unit}</span>
           </div>
           <div className="mt-1 flex items-center justify-end gap-3">
             <TrendArrow change={c.change24h} /> <span className="text-[11px] text-muted-foreground">24h</span>
-            <TrendArrow change={c.change30d} trend={c.trend} /> <span className="text-[11px] text-muted-foreground">30d</span>
+            <TrendArrow change={c.change30d} /> <span className="text-[11px] text-muted-foreground">30d</span>
           </div>
         </div>
       </div>

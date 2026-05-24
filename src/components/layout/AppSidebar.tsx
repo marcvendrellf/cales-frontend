@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/sidebar"
 import { Logo } from "@/components/layout/Logo"
 import { SidebarUser } from "@/components/layout/SidebarUser"
+import { SidebarThemeToggle } from "@/components/common/ThemeToggle"
 import { COMMODITIES } from "@/data/mock"
 
 export function AppSidebar() {
@@ -97,7 +98,8 @@ export function AppSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
-      <SidebarFooter className="px-3 py-4">
+      <SidebarFooter className="gap-2 px-3 py-4">
+        <SidebarThemeToggle />
         <SidebarUser />
       </SidebarFooter>
     </Sidebar>

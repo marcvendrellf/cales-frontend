@@ -1,10 +1,13 @@
 import { useEffect, useRef } from "react"
 import maplibregl, { LngLatBounds, type Map as MapLibreMap, type Marker } from "maplibre-gl"
+import { useTheme } from "next-themes"
 import "maplibre-gl/dist/maplibre-gl.css"
 
 import { cn } from "@/lib/utils"
 
 const CARTO_DARK_STYLE = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json"
+// Voyager (vs the very pale Positron) keeps land/water/labels legible on the warm light canvas.
+const CARTO_LIGHT_STYLE = "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json"
 
 export type MapPoint = {
   id: string
@@ -52,7 +55,7 @@ function toFeatureCollection(points: MapPoint[]): GeoJSON.FeatureCollection {
   }
 }
 
-export function Map({
+function MapInner({
   center,
   zoom = 4,
   points = [],
@@ -62,7 +65,8 @@ export function Map({
   framePoints,
   interactive = true,
   selectedPoint,
-}: MapProps) {
+  styleUrl,
+}: MapProps & { styleUrl: string }) {
   const containerRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const markerRefs = useRef<Marker[]>([])
@@ -72,7 +76,7 @@ export function Map({
 
     const map = new maplibregl.Map({
       container: containerRef.current,
-      style: CARTO_DARK_STYLE,
+      style: styleUrl,
       center,
       zoom,
       interactive,
@@ -142,6 +146,45 @@ export function Map({
     ensure()
     return () => window.clearTimeout(timer)
   }, [points, heatmap])
+
+  // Light basemap (Voyager) is muted on the warm canvas. Recolor the actual map
+  // layers — deeper water, firmer borders, darker labels — for more contrast.
+  // This is real styling (not a CSS filter), so it composites with the WebGL map.
+  useEffect(() => {
+    if (styleUrl !== CARTO_LIGHT_STYLE) return
+    let tries = 0
+    let timer = 0
+
+    const apply = () => {
+      const map = mapRef.current
+      if (!map) return
+      const layers = map.getStyle()?.layers
+      if (!layers || layers.length === 0) {
+        if (tries++ < 40) timer = window.setTimeout(apply, 150)
+        return
+      }
+      for (const layer of layers) {
+        const id = layer.id
+        try {
+          if (layer.type === "fill" && /water|ocean|sea|marine/i.test(id) && !/waterway|tunnel/i.test(id)) {
+            map.setPaintProperty(id, "fill-color", "#8fbcd9")
+          } else if (layer.type === "line" && /boundary|admin/i.test(id)) {
+            map.setPaintProperty(id, "line-color", "#9b8d76")
+            map.setPaintProperty(id, "line-opacity", 0.9)
+          } else if (layer.type === "symbol" && /place|country|state|marine|water|city|town/i.test(id)) {
+            map.setPaintProperty(id, "text-color", "#4a4236")
+            map.setPaintProperty(id, "text-halo-color", "#faf8f3")
+            map.setPaintProperty(id, "text-halo-width", 1.2)
+          }
+        } catch {
+          /* layer doesn't support this paint prop — skip */
+        }
+      }
+    }
+
+    apply()
+    return () => window.clearTimeout(timer)
+  }, [styleUrl])
 
   useEffect(() => {
     const map = mapRef.current
@@ -243,4 +286,11 @@ export function Map({
       )}
     />
   )
+}
+
+export function Map(props: MapProps) {
+  const { resolvedTheme } = useTheme()
+  const styleUrl = resolvedTheme === "dark" ? CARTO_DARK_STYLE : CARTO_LIGHT_STYLE
+  // Remount on basemap change so markers, heatmap and camera re-initialize cleanly.
+  return <MapInner key={styleUrl} styleUrl={styleUrl} {...props} />
 }

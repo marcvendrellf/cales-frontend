@@ -13,61 +13,62 @@
 :root {
   --radius: 0.25rem; /* 4px — Warp {rounded.md} base */
 
-  --background: #242019; /* {colors.canvas} */
-  --foreground: #f7f5f0; /* {colors.ink} */
-  --card: #383330; /* {colors.canvas-soft} */
-  --card-foreground: #f7f5f0;
-  --popover: #211d1a;
-  --popover-foreground: #f7f5f0;
-  --primary: #f7f5f0; /* off-white IS the brand primary */
-  --primary-foreground: #2b2622; /* {colors.on-primary} */
-  --secondary: #383330;
-  --secondary-foreground: #f7f5f0;
-  --muted: #383330;
-  --muted-foreground: #aea69c; /* {colors.mute} */
-  --accent: #3f3a36;
-  --accent-foreground: #f7f5f0;
-  --destructive: #d9737a;
-  --border: #3f3a36; /* {colors.hairline} */
-  --input: #3f3a36;
-  --ring: #aea69c;
+  /* Light is the default — a warm, paper-like counterpart to the dark canvas. */
+  --background: #f4f1ea; /* warm paper */
+  --foreground: #2b2622; /* warm near-black ink */
+  --card: #fbf9f4; /* a touch lighter than the canvas */
+  --card-foreground: #2b2622;
+  --popover: #ffffff;
+  --popover-foreground: #2b2622;
+  --primary: #2b2622; /* warm ink is primary on light */
+  --primary-foreground: #f7f5f0;
+  --secondary: #e9e4da;
+  --secondary-foreground: #2b2622;
+  --muted: #e9e4da;
+  --muted-foreground: #6b6359; /* warm gray */
+  --accent: #e2dcd0;
+  --accent-foreground: #2b2622;
+  --destructive: #c0444b;
+  --border: #ddd6c9; /* warm hairline */
+  --input: #ddd6c9;
+  --ring: #b2a899;
 
-  /* recommendation semantics */
-  --buy: #74c79a;
-  --buy-foreground: #0f1a14;
-  --wait: #6f9bd1;
-  --wait-foreground: #0c141d;
-  --hedge: #e0b341;
-  --hedge-foreground: #1c1605;
-  --monitor: #aea69c;
-  --monitor-foreground: #1c1916;
+  /* recommendation semantics — tuned for a light background */
+  --buy: #2f9e6a;
+  --buy-foreground: #ffffff;
+  --wait: #3b6fae;
+  --wait-foreground: #ffffff;
+  --hedge: #b07d0a;
+  --hedge-foreground: #ffffff;
+  --monitor: #6b6359;
+  --monitor-foreground: #ffffff;
 
   /* price moves */
-  --positive: #74c79a;
-  --negative: #d9737a;
+  --positive: #1f8f5a;
+  --negative: #c0444b;
 
   /* chart series — per commodity, not price-direction semantics */
-  --chart-1: #8eb0d4;
-  --chart-2: #e0b341;
-  --chart-3: #6f9bd1;
-  --chart-4: #d99a4e;
-  --chart-5: #b48ead;
+  --chart-1: #3b6fae;
+  --chart-2: #b07d0a;
+  --chart-3: #5a86bd;
+  --chart-4: #c07d2a;
+  --chart-5: #8a5f86;
 
   /* Cala partner accent (used sparingly) */
-  --cala: #c9c0ad; /* {colors.body} — warm, on-brand */
+  --cala: #8a7d5e; /* warm, on-brand — deepened for light */
 
-  /* sidebar — warm, slightly lighter than the canvas */
-  --sidebar: #2b2622;
-  --sidebar-foreground: #c9c0ad;
-  --sidebar-primary: #f7f5f0;
-  --sidebar-primary-foreground: #2b2622;
-  --sidebar-accent: #383330;
-  --sidebar-accent-foreground: #f7f5f0;
-  --sidebar-border: #3f3a36;
-  --sidebar-ring: #aea69c;
+  /* sidebar — warm, slightly darker than the canvas */
+  --sidebar: #efece4;
+  --sidebar-foreground: #4a4339;
+  --sidebar-primary: #2b2622;
+  --sidebar-primary-foreground: #f7f5f0;
+  --sidebar-accent: #e2dcd0;
+  --sidebar-accent-foreground: #2b2622;
+  --sidebar-border: #ddd6c9;
+  --sidebar-ring: #b2a899;
 }
 
-/* App is dark by default; mirror tokens so shadcn .dark utilities resolve. */
+/* Dark theme — toggled on via next-themes (.dark on <html>). */
 .dark {
   --background: #242019;
   --foreground: #f7f5f0;
@@ -219,8 +220,39 @@
   animation: marquee 40s linear infinite;
 }
 
-/* Cinematic report — black, editorial canvas, distinct from the warm app shell. */
+/* The report map is themed via proper light/dark map STYLES (see map.tsx:
+   Voyager for light, dark-matter for dark) — no filter on the light map.
+   Dark keeps a gentle lift on the dark-matter basemap, as in the original design. */
+.dark .cales-map-fx {
+  filter: brightness(1.45);
+}
+
+/* Cinematic report — editorial canvas, distinct from the app shell.
+   Light variant by default; a dark cinematic variant under .dark. */
 .report-theme {
+  --background: #faf8f3;
+  --foreground: #1a1714;
+  --card: #ffffff;
+  --card-foreground: #1a1714;
+  --popover: #ffffff;
+  --popover-foreground: #1a1714;
+  --primary: #1a1714;
+  --primary-foreground: #faf8f3;
+  --secondary: #efece5;
+  --secondary-foreground: #1a1714;
+  --muted: #efece5;
+  --muted-foreground: #3e362b; /* deep warm grey — high-contrast secondary text on paper */
+  --accent: #e7e2d8;
+  --accent-foreground: #1a1714;
+  --border: #e2dccf;
+  --input: #e2dccf;
+  --ring: #b7ad9d;
+  --cala: #8a7d5e;
+  background-color: var(--background);
+  color: var(--foreground);
+}
+
+.dark .report-theme {
   --background: #0a0a0b;
   --foreground: #f7f6f3;
   --card: #161618;
@@ -239,8 +271,6 @@
   --input: #2a2a2d;
   --ring: #5a5a5d;
   --cala: #ddd4bd;
-  background-color: var(--background);
-  color: var(--foreground);
 }
 
 .report-theme .display-serif {

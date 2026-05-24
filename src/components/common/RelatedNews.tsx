@@ -1,12 +1,6 @@
 import { useState } from "react"
-import { ArrowUpRight, ExternalLink, X } from "lucide-react"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { ArrowUpRight } from "lucide-react"
+import { NewsModal, evidenceToNews } from "@/components/common/NewsModal"
 import { fmtDate, reliabilityLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
 import type { Driver, Evidence } from "@/types"
@@ -16,71 +10,6 @@ const reliabilityStyle = {
   medium: "text-hedge border-hedge/30",
   low: "text-monitor border-monitor/30",
 } as const
-
-function NewsPreviewDialog({
-  item,
-  open,
-  onOpenChange,
-}: {
-  item: Evidence | null
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}) {
-  if (!item) return null
-
-  const isCala = item.source.toLowerCase().includes("cala")
-  const sourceUrl = item.url ?? sourceSearchUrl(item)
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent showCloseButton={false} className="max-w-2xl gap-0 p-7">
-        <button
-          type="button"
-          onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 z-10 inline-flex size-9 items-center justify-center rounded-md border border-border bg-background/50 text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <X className="size-4" />
-          <span className="sr-only">Close</span>
-        </button>
-
-        <div className="flex flex-wrap items-center gap-2 pr-10">
-          <span className={cn("text-sm font-semibold", isCala ? "text-cala" : "text-foreground")}>
-            {item.source}
-          </span>
-          <span
-            className={cn(
-              "rounded-xs border px-1.5 py-px text-[10px] uppercase tracking-wide",
-              reliabilityStyle[item.reliability],
-            )}
-          >
-            {reliabilityLabel[item.reliability]}
-          </span>
-          <span className="font-mono text-[11px] text-muted-foreground">{fmtDate(item.date)}</span>
-        </div>
-
-        <DialogHeader className="text-left">
-          <DialogTitle className="display-serif mt-3 pr-10 text-left text-2xl leading-tight">
-            {item.title}
-          </DialogTitle>
-        </DialogHeader>
-
-        <DialogDescription asChild>
-          <p className="mt-4 text-base leading-8 text-foreground/85">{item.excerpt}</p>
-        </DialogDescription>
-
-        <a
-          href={sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-6 inline-flex w-fit items-center gap-2 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          <ExternalLink className="size-3.5" />
-          Open in new tab
-        </a>
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 function sourceSearchUrl(item: Evidence) {
   const query = `${item.source} ${item.title}`
@@ -215,8 +144,8 @@ export function RelatedNews({
         </div>
       </div>
 
-      <NewsPreviewDialog
-        item={selected}
+      <NewsModal
+        news={selected ? evidenceToNews(selected) : null}
         open={previewOpen}
         onOpenChange={setPreviewOpen}
       />
