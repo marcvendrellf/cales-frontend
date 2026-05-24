@@ -753,7 +753,6 @@ function TheCall({
   const rec = report?.recommendation
   const action = actionFromAgent(rec?.action ?? c.recommendation.action)
   const score = rec?.risk_score ?? c.recommendation.score
-  const opportunity = rec?.opportunity_score
   const horizon = report?.horizon_label ?? config.horizon
   const spot = report?.market_context.spot_price?.value ?? c.spot
   const unit = report?.market_context.spot_price?.unit ?? c.unit
