@@ -10,7 +10,7 @@ export function Logo({ className }: { className?: string }) {
       className={cn("flex items-center gap-2.5 transition-opacity hover:opacity-80", className)}
     >
       <WavesMark className="size-7 text-foreground" />
-      <span className="font-serif text-2xl leading-none tracking-tight">Cales</span>
+      <span className="font-serif text-2xl leading-none tracking-tight">Calés</span>
     </Link>
   )
 }
