@@ -184,6 +184,8 @@ export interface AgentMonitorItem {
   evidence_source_ids: string[]
 }
 
+import { DEMO_REPORT_CONFIGS } from "@/data/demo-reports"
+
 const STORAGE_PREFIX = "cales:report:"
 
 const HORIZON_DAYS: Record<ReportHorizon, number> = {
@@ -390,8 +392,9 @@ export function saveReportConfig(config: ReportConfig) {
 export function loadReportConfig(reportId: string): ReportConfig | null {
   try {
     const raw = localStorage.getItem(`${STORAGE_PREFIX}${reportId}`)
-    return raw ? (JSON.parse(raw) as ReportConfig) : null
+    if (raw) return JSON.parse(raw) as ReportConfig
   } catch {
-    return null
+    // fall through to demo
   }
+  return DEMO_REPORT_CONFIGS[reportId] ?? null
 }

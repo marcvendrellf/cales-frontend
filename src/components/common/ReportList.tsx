@@ -15,7 +15,8 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { fmtDate } from "@/lib/format"
-import type { Action, Commodity } from "@/types"
+import { DEMO_REPORT_CONFIGS, DEMO_REPORT_ID } from "@/data/demo-reports"
+import type { Action, Commodity, CommodityId } from "@/types"
 
 type ReportRow = {
   id: string
@@ -37,21 +38,42 @@ function formatElapsed(totalSeconds: number) {
 }
 
 function buildReportRows(c: Commodity): ReportRow[] {
+  const demoId = DEMO_REPORT_ID[c.id as CommodityId]
+  const demoConfig = demoId ? DEMO_REPORT_CONFIGS[demoId] : undefined
+  const demoReport = demoConfig?.agentResponse?.report_json
+
+  const rows: ReportRow[] = []
+
+  if (demoConfig && demoReport) {
+    rows.push({
+      id: demoConfig.reportId,
+      title: `${c.name} procurement report`,
+      action: demoReport.recommendation.action.toLowerCase() as Action,
+      horizon: demoReport.horizon_label,
+      sourceCount: demoReport.evidence.length,
+      owner: "Marc Vendrell",
+      updatedAt: demoConfig.generatedAt.slice(0, 10),
+      status: "Ready",
+    })
+  }
+
   const historyRows = c.recommendationHistory
     .slice()
     .reverse()
+    .slice(demoConfig ? 1 : 0)
     .map((entry, index) => ({
       id: `${c.id}-${entry.date}-${index}`,
       title: `${c.name} procurement report`,
       action: entry.action,
-      horizon: index === 0 ? c.recommendation.horizon : "Previous call",
-      sourceCount: Math.max(1, c.evidence.length - Math.min(index, 2)),
+      horizon: "Previous call",
+      sourceCount: Math.max(1, c.evidence.length - Math.min(index + 1, 2)),
       owner: "Marc Vendrell",
       updatedAt: entry.date,
-      status: index === 0 ? "Ready" : "Archived",
-    })) satisfies ReportRow[]
+      status: "Archived" as const,
+    }))
 
-  if (historyRows.length) return historyRows
+  rows.push(...historyRows)
+  if (rows.length) return rows
 
   return [
     {
