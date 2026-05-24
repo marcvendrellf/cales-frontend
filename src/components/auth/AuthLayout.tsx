@@ -12,7 +12,7 @@ interface AuthLayoutProps {
 export function AuthLayout({ children, eyebrow, description }: AuthLayoutProps) {
   const [imageLoaded, setImageLoaded] = useState(false)
   return (
-    <main className="grid min-h-svh bg-background text-foreground lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.75fr)]">
+    <main className="dark grid min-h-svh bg-background text-foreground [color-scheme:dark] lg:grid-cols-[minmax(0,0.95fr)_minmax(420px,0.75fr)]">
       <section className="relative hidden overflow-hidden border-r border-border bg-sidebar lg:block">
         <img
           src="/pexels-matreding-11666903.jpg"
