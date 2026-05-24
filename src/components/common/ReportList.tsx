@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useNavigate } from "react-router-dom"
-import { ChevronLeft, ChevronRight, Search } from "lucide-react"
+import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react"
 import { ActionBadge } from "@/components/common/ActionBadge"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -28,6 +29,12 @@ type ReportRow = {
 }
 
 const PAGE_SIZE = 5
+
+function formatElapsed(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60)
+  const s = totalSeconds % 60
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
 
 function buildReportRows(c: Commodity): ReportRow[] {
   const historyRows = c.recommendationHistory
@@ -60,11 +67,22 @@ function buildReportRows(c: Commodity): ReportRow[] {
   ]
 }
 
-export function ReportList({ c }: { c: Commodity }) {
+export function ReportList({ c, pendingTitle, generatingSince }: { c: Commodity; pendingTitle?: string | null; generatingSince?: number | null }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
+  const [elapsed, setElapsed] = useState(0)
   const rows = useMemo(() => buildReportRows(c), [c])
+
+  useEffect(() => {
+    if (!pendingTitle || !generatingSince) {
+      setElapsed(0)
+      return
+    }
+    setElapsed(Math.floor((Date.now() - generatingSince) / 1000))
+    const id = window.setInterval(() => setElapsed(Math.floor((Date.now() - generatingSince) / 1000)), 1000)
+    return () => window.clearInterval(id)
+  }, [pendingTitle, generatingSince])
 
   const openReport = (reportId: string) =>
     navigate(`/c/${c.id}/reports/${reportId}`, { viewTransition: true })
@@ -129,6 +147,33 @@ export function ReportList({ c }: { c: Commodity }) {
             </TableRow>
           </TableHeader>
           <TableBody>
+            {pendingTitle && boundedPage === 0 ? (
+              <TableRow className="h-[53px] cursor-default opacity-60">
+                <TableCell className="px-4 py-2">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <Loader2 className="size-3.5 shrink-0 animate-spin text-muted-foreground" />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-muted-foreground">{pendingTitle}</p>
+                      <p className="mt-0.5 truncate text-xs text-muted-foreground">
+                        Analyzing — this can take 1–2 min · <span className="font-mono tabular-nums">{formatElapsed(elapsed)}</span>
+                      </p>
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell className="px-4 py-2">
+                  <Skeleton className="h-5 w-16 rounded-full" />
+                </TableCell>
+                <TableCell className="px-4 py-2">
+                  <Skeleton className="h-3 w-20" />
+                </TableCell>
+                <TableCell className="px-4 py-2">
+                  <Skeleton className="h-3 w-16" />
+                </TableCell>
+                <TableCell className="px-4 py-2">
+                  <Skeleton className="h-3 w-6" />
+                </TableCell>
+              </TableRow>
+            ) : null}
             {visibleRows.length ? (
               visibleRows.map((row) => (
                 <TableRow
@@ -166,7 +211,7 @@ export function ReportList({ c }: { c: Commodity }) {
                   </TableCell>
                 </TableRow>
               ))
-            ) : (
+            ) : pendingTitle && boundedPage === 0 ? null : (
               <TableRow>
                 <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                   No reports found.

@@ -22,6 +22,10 @@ function delay<T>(value: T, ms = 220): Promise<T> {
   return new Promise((resolve) => setTimeout(() => resolve(value), ms))
 }
 
+// The agent runs a multi-turn LLM loop; analyze can take minutes, so timeouts are generous.
+const ANALYZE_TIMEOUT_MS = 240_000
+const AGENT_TIMEOUT_MS = 180_000
+
 function joinUrl(baseUrl: string, path: string) {
   return `${baseUrl.replace(/\/$/, "")}${path.startsWith("/") ? path : `/${path}`}`
 }
@@ -48,24 +52,33 @@ async function getFromBase<T>(baseUrl: string, path: string): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function post<T>(baseUrl: string, path: string, body: unknown): Promise<T> {
-  const res = await fetch(joinUrl(baseUrl, path), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`API ${res.status} for ${path}`)
+async function postJson<T>(url: string, body: unknown, timeoutMs?: number): Promise<T> {
+  let res: Response
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined,
+    })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "TimeoutError") {
+      throw new Error(
+        `The agent took longer than ${Math.round((timeoutMs ?? 0) / 1000)}s and timed out. The backend may be overloaded — please try again.`,
+      )
+    }
+    throw error
+  }
+  if (!res.ok) throw new Error(`API ${res.status} for ${url}`)
   return res.json() as Promise<T>
 }
 
-async function postUrl<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) throw new Error(`API ${res.status} for ${url}`)
-  return res.json() as Promise<T>
+function post<T>(baseUrl: string, path: string, body: unknown, timeoutMs?: number): Promise<T> {
+  return postJson<T>(joinUrl(baseUrl, path), body, timeoutMs)
+}
+
+function postUrl<T>(url: string, body: unknown, timeoutMs?: number): Promise<T> {
+  return postJson<T>(url, body, timeoutMs)
 }
 
 function mockUiAgent(payload: UIScreenPayload): UIAgentResponse {
@@ -323,7 +336,7 @@ export const api = {
         },
       }, 900)
     }
-    return post<AgentAnalyzeResponse>(AGENT_API_URL, "/agent/analyze", payload)
+    return post<AgentAnalyzeResponse>(AGENT_API_URL, "/agent/analyze", payload, ANALYZE_TIMEOUT_MS)
   },
 
   getReport(reportId: string): Promise<AgentAnalyzeResponse> {
@@ -338,12 +351,12 @@ export const api = {
         tool_calls: [],
       })
     }
-    return post<{ answer: string; tool_calls: Array<Record<string, unknown>> }>(AGENT_API_URL, "/agent/chat", { message })
+    return post<{ answer: string; tool_calls: Array<Record<string, unknown>> }>(AGENT_API_URL, "/agent/chat", { message }, AGENT_TIMEOUT_MS)
   },
 
   runUiAgent(payload: UIScreenPayload): Promise<UIAgentResponse> {
     if (USE_UI_AGENT_MOCK) return delay(mockUiAgent(payload), 450)
-    return postUrl<UIAgentResponse>(UI_AGENT_API_URL, payload)
+    return postUrl<UIAgentResponse>(UI_AGENT_API_URL, payload, AGENT_TIMEOUT_MS)
   },
 }
 

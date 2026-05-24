@@ -15,7 +15,6 @@ import { toast } from "sonner"
 import { api } from "@/api/client"
 import { Card } from "@/components/ui/card"
 import { HoverBorderGradient } from "@/components/ui/hover-border-gradient"
-import { ReportGeneratingSkeleton } from "@/components/common/PageSkeletons"
 import { fmtDate } from "@/lib/format"
 import { buildAgentAnalyzeRequest, buildReportConfig, saveReportConfig } from "@/lib/report-config"
 import { SCREEN_AGENT_ASK_EVENT, type ScreenAgentAskDetail } from "@/lib/screen-agent"
@@ -80,7 +79,15 @@ function newsTargetId(id: string) {
   return `news_${id}`
 }
 
-export function ReportBuilder({ c }: { c: Commodity }) {
+export function ReportBuilder({
+  c,
+  onGenerateStart,
+  onGenerateError,
+}: {
+  c: Commodity
+  onGenerateStart?: () => void
+  onGenerateError?: () => void
+}) {
   const navigate = useNavigate()
   const contextFactors: ContextFactor[] = [
     { key: "currentDate", label: "Current date", hint: "Anchor the report to today's market window", available: true },
@@ -117,8 +124,13 @@ export function ReportBuilder({ c }: { c: Commodity }) {
       return next
     })
 
-  const toggleContext = (key: ContextKey) =>
+  const setRecentNewsItems = (selectAll: boolean) =>
+    setNews(selectAll ? new Set(c.evidence.map((e) => e.id)) : new Set())
+
+  const toggleContext = (key: ContextKey) => {
     setIncludedContext((prev) => ({ ...prev, [key]: !prev[key] }))
+    if (key === "recentNews") setRecentNewsItems(!includedContext.recentNews)
+  }
 
   const canGenerate = status !== "generating"
   const canRunAgent = agentStatus === "idle" && status !== "generating"
@@ -191,7 +203,9 @@ export function ReportBuilder({ c }: { c: Commodity }) {
       const key = action.target_id.replace("context_", "") as ContextKey
       const factor = contextFactors.find((item) => item.key === key)
       if (!factor?.available) return
+      const next = nextValue ?? !includedContext[key]
       setIncludedContext((prev) => ({ ...prev, [key]: nextValue ?? !prev[key] }))
+      if (key === "recentNews") setRecentNewsItems(next)
       return
     }
     if (action.target_id === "market_drivers") {
@@ -263,6 +277,7 @@ export function ReportBuilder({ c }: { c: Commodity }) {
   async function generate() {
     if (!canGenerate) return
     setStatus("generating")
+    onGenerateStart?.()
 
     try {
       const config = buildReportConfig({
@@ -289,6 +304,7 @@ export function ReportBuilder({ c }: { c: Commodity }) {
       const message = error instanceof Error ? error.message : "Unknown error"
       toast.error("Agent request failed", { description: message })
       setStatus("idle")
+      onGenerateError?.()
     }
   }
 
@@ -403,10 +419,6 @@ export function ReportBuilder({ c }: { c: Commodity }) {
             </>
           )}
         </HoverBorderGradient>
-      </div>
-
-      <div>
-        {status === "generating" && <ReportGeneratingSkeleton />}
       </div>
     </div>
   )

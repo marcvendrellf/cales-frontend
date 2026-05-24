@@ -13,11 +13,25 @@ const SUGGESTIONS = [
   "Compare the 1-month and 6-month outlook.",
 ]
 
+function formatElapsed(totalSeconds: number) {
+  const m = Math.floor(totalSeconds / 60)
+  const s = totalSeconds % 60
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
+
 export function AskBar() {
   const [value, setValue] = useState("")
   const [open, setOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (!submitting) return
+    setElapsed(0)
+    const id = window.setInterval(() => setElapsed((s) => s + 1), 1000)
+    return () => window.clearInterval(id)
+  }, [submitting])
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -76,6 +90,16 @@ export function AskBar() {
             </motion.ul>
           ) : null}
         </AnimatePresence>
+
+        {submitting ? (
+          <div className="mb-2 flex items-center gap-2 rounded-xl border border-border/60 bg-card/90 px-3.5 py-2 text-xs text-muted-foreground shadow-lg backdrop-blur-xl">
+            <Loader2 className="size-3.5 shrink-0 animate-spin text-cala" />
+            <span>
+              Cales is working{elapsed >= 15 ? " — this can take a minute" : "…"}{" "}
+              <span className="font-mono tabular-nums">{formatElapsed(elapsed)}</span>
+            </span>
+          </div>
+        ) : null}
 
         <form
           className="group flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 shadow-lg shadow-black/20 backdrop-blur transition-colors focus-within:border-foreground/25 hover:border-foreground/25 hover:bg-card"

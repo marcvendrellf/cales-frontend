@@ -1,3 +1,4 @@
+import { useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { FileText, Info, ListChecks } from "lucide-react"
 import { useCommodity } from "@/api/hooks"
@@ -41,6 +42,7 @@ function GeneralInfo({ c }: { c: Commodity }) {
 function Loaded({ c }: { c: Commodity }) {
   const navigate = useNavigate()
   const location = useLocation()
+  const [generatingStartedAt, setGeneratingStartedAt] = useState<number | null>(null)
   const isCreateReport =
     location.pathname.endsWith("/create-report") || location.pathname.endsWith("/report")
   const isReportList =
@@ -117,10 +119,18 @@ function Loaded({ c }: { c: Commodity }) {
           <GeneralInfo c={c} />
         </TabsContent>
         <TabsContent value="create-report" className="mt-6">
-          <ReportBuilder c={c} />
+          <ReportBuilder
+            c={c}
+            onGenerateStart={() => setGeneratingStartedAt(Date.now())}
+            onGenerateError={() => setGeneratingStartedAt(null)}
+          />
         </TabsContent>
         <TabsContent value="report-list" className="mt-6">
-          <ReportList c={c} />
+          <ReportList
+            c={c}
+            pendingTitle={generatingStartedAt ? `${c.name} procurement report` : null}
+            generatingSince={generatingStartedAt}
+          />
         </TabsContent>
       </Tabs>
     </div>
