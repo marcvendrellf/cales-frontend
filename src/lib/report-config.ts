@@ -398,3 +398,7 @@ export function loadReportConfig(reportId: string): ReportConfig | null {
   }
   return DEMO_REPORT_CONFIGS[reportId] ?? null
 }
+
+export function isDemoReportId(reportId: string): boolean {
+  return reportId in DEMO_REPORT_CONFIGS
+}

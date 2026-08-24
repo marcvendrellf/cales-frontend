@@ -45,7 +45,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useCommodity } from "@/api/hooks"
-import { api, resolveBackendUrl } from "@/api/client"
+import { AGENT_CONFIGURED, api, resolveBackendUrl } from "@/api/client"
 import { REPORT_MAP_POINTS } from "@/lib/report-map-points"
 import {
   defaultReportConfig,
@@ -57,6 +57,7 @@ import {
   type AgentWebsiteReport,
   type ReportConfig,
   type WhatIfScenarioConfig,
+  isDemoReportId,
 } from "@/lib/report-config"
 import { fmtDate, fmtNumber, fmtPct, reliabilityLabel } from "@/lib/format"
 import { cn } from "@/lib/utils"
@@ -1810,14 +1811,25 @@ function CinematicReport({
 
 export function ReportViewer({ publicMode = false }: { publicMode?: boolean }) {
   const { id, reportId = "" } = useParams<{ id?: string; reportId: string }>()
-  const storedConfig = reportId ? loadReportConfig(reportId) : null
+  const bundledConfig = reportId ? loadReportConfig(reportId) : null
+  // When a backend is configured, demo reports are served by the backend so the
+  // deployed path proves browser → backend → report. Bundled fixtures are the
+  // offline fallback.
+  const preferRemoteReport = Boolean(reportId && AGENT_CONFIGURED && isDemoReportId(reportId))
+  const storedConfig = preferRemoteReport ? null : bundledConfig
   const shouldFetchRemote = Boolean(reportId && !storedConfig)
   const {
     data: remoteResponse,
     isLoading: remoteLoading,
+    isError: remoteError,
   } = useQuery({
     queryKey: ["agent-report", reportId],
-    queryFn: () => api.getReport(reportId),
+    queryFn: () => {
+      const material = reportCommodityId(reportId)
+      return material && isDemoReportId(reportId)
+        ? api.getDemoReport(material)
+        : api.getReport(reportId)
+    },
     enabled: shouldFetchRemote,
     retry: false,
   })
@@ -1828,8 +1840,9 @@ export function ReportViewer({ publicMode = false }: { publicMode?: boolean }) {
     if (!data || !reportId) return null
     if (storedConfig) return storedConfig
     if (remoteResponse?.status === "completed") return reportConfigFromAgentResponse(data, remoteResponse)
+    if (remoteError && bundledConfig) return bundledConfig
     return storedConfig ?? defaultReportConfig(data, reportId)
-  }, [data, remoteResponse, reportId, storedConfig])
+  }, [data, remoteResponse, remoteError, reportId, storedConfig, bundledConfig])
 
   if (isLoading || (shouldFetchRemote && remoteLoading && !storedConfig)) {
     return <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">Preparing brief...</div>

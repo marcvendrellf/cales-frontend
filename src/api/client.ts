@@ -344,6 +344,11 @@ export const api = {
     return getFromBase<AgentAnalyzeResponse>(AGENT_API_URL, `/agent/reports/${reportId}`)
   },
 
+  getDemoReport(material: CommodityId): Promise<AgentAnalyzeResponse> {
+    if (USE_AGENT_MOCK) return Promise.reject(new Error("No agent report API configured"))
+    return getFromBase<AgentAnalyzeResponse>(AGENT_API_URL, `/demo/reports/${material}`)
+  },
+
   chat(message: string): Promise<{ answer: string; tool_calls: Array<Record<string, unknown>> }> {
     if (USE_AGENT_MOCK) {
       return delay({
@@ -361,3 +366,5 @@ export const api = {
 }
 
 export const IS_MOCK = USE_MOCK
+// True when a backend agent API is configured (not running on bundled mocks).
+export const AGENT_CONFIGURED = !USE_AGENT_MOCK
