@@ -5,7 +5,13 @@ import { api } from "@/api/client"
 import { askActiveScreen } from "@/lib/screen-agent"
 import { cn } from "@/lib/utils"
 
+const DEMO_HOWTO_QUESTION = "Explain how to use this demo"
+
+const DEMO_WALKTHROUGH =
+  "Welcome to Calés! 👋 This is a demo deployment: both the frontend and the backend are live, but no API keys are configured, so agent interaction is limited. To see a real report created by the agent crew, go to Reports → pick a commodity → Report List, and open the Ready report."
+
 const SUGGESTIONS = [
+  DEMO_HOWTO_QUESTION,
   "Should we buy aluminium now?",
   "What's the 3-month forecast for barley?",
   "Why is the energy recommendation a hedge?",
@@ -97,17 +103,15 @@ export function AskBar() {
   const inputRef = useRef<HTMLInputElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
 
-  // Greet the user shortly after they enter the app: explain the demo setup
-  // and point them to the pre-generated reports.
+  // Greet the user shortly after they enter the app, once per browser session:
+  // explain the demo setup and point them to the pre-generated reports.
   useEffect(() => {
+    if (sessionStorage.getItem("cales-demo-greeted")) return
     const id = window.setTimeout(() => {
+      sessionStorage.setItem("cales-demo-greeted", "1")
       setMessages((prev) =>
         prev.length === 0
-          ? [{
-              role: "assistant",
-              text:
-                "Welcome to Calés! 👋 This is a demo deployment: both the frontend and the backend are live, but no API keys are configured, so agent interaction is limited. To see a real report created by the agent crew, go to Reports → pick a commodity → Report List, and open the Ready report.",
-            }]
+          ? [{ role: "assistant", text: DEMO_WALKTHROUGH }]
           : prev,
       )
     }, 2000)
@@ -159,6 +163,10 @@ export function AskBar() {
     setOpen(false)
     setMessages((prev) => [...prev, { role: "user", text: question }])
     setValue("")
+    if (question.trim().toLowerCase() === DEMO_HOWTO_QUESTION.toLowerCase()) {
+      setMessages((prev) => [...prev, { role: "assistant", text: DEMO_WALKTHROUGH }])
+      return
+    }
     setSubmitting(true)
     try {
       const screenResponse = askActiveScreen(question)
@@ -197,18 +205,29 @@ export function AskBar() {
               transition={{ duration: 0.26, ease: "easeOut" }}
               className="mb-2 origin-bottom overflow-hidden rounded-2xl border border-border/60 bg-card/90 p-1.5 shadow-[0_28px_80px_-20px_rgba(0,0,0,0.8)] ring-1 ring-white/[0.04] backdrop-blur-xl"
             >
-              {filtered.map((suggestion) => (
-                <li key={suggestion}>
-                  <button
-                    type="button"
-                    onMouseDown={(e) => { e.preventDefault(); pick(suggestion) }}
-                    className="flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-muted-foreground transition-colors hover:bg-foreground/[0.05] hover:text-foreground"
-                  >
-                    <Sparkles className="size-3.5 shrink-0 text-cala/70" />
-                    <span className="truncate">{suggestion}</span>
-                  </button>
-                </li>
-              ))}
+              {filtered.map((suggestion, index) => {
+                const isHowTo = suggestion === DEMO_HOWTO_QUESTION
+                return (
+                  <li key={suggestion}>
+                    <button
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); pick(suggestion) }}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm transition-colors hover:bg-foreground/[0.05]",
+                        isHowTo
+                          ? "bg-cala/[0.08] font-medium text-foreground ring-1 ring-cala/25 hover:bg-cala/[0.12]"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      <Sparkles className={cn("size-3.5 shrink-0", isHowTo ? "text-cala" : "text-cala/70")} />
+                      <span className="truncate">{suggestion}</span>
+                      {isHowTo && index === 0 && !query ? (
+                        <span className="ml-auto shrink-0 rounded-full bg-cala/15 px-2 py-0.5 text-[10px] font-medium text-cala ring-1 ring-cala/30">Start here</span>
+                      ) : null}
+                    </button>
+                  </li>
+                )
+              })}
             </motion.ul>
           ) : null}
         </AnimatePresence>

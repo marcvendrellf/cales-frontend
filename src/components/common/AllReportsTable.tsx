@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react"
-import { useNavigate } from "react-router-dom"
 import { ChevronLeft, ChevronRight, Search } from "lucide-react"
 import { ActionBadge } from "@/components/common/ActionBadge"
 import { Button } from "@/components/ui/button"
@@ -67,12 +66,8 @@ function buildRowsForCommodity(c: Commodity): ReportRow[] {
 }
 
 export function AllReportsTable({ commodities }: { commodities: Commodity[] }) {
-  const navigate = useNavigate()
   const [query, setQuery] = useState("")
   const [pageIndex, setPageIndex] = useState(0)
-
-  const openReport = (row: ReportRow) =>
-    navigate(`/c/${row.commodityId}/reports/${row.id}`, { viewTransition: true })
 
   const rows = useMemo(() => {
     const all = commodities.flatMap(buildRowsForCommodity)
@@ -126,6 +121,9 @@ export function AllReportsTable({ commodities }: { commodities: Commodity[] }) {
       </div>
 
       <Card className="overflow-hidden rounded-lg border-border/70 bg-card/40 p-0 shadow-none">
+        <div className="border-b border-border/40 bg-muted/30 px-4 py-2.5 text-xs text-muted-foreground">
+          Reports are archived in this demo. Open a commodity, then go to its Report List to view the real agent-created report.
+        </div>
         <Table className="table-fixed">
           <colgroup>
             <col className="w-[34%]" />
@@ -148,16 +146,9 @@ export function AllReportsTable({ commodities }: { commodities: Commodity[] }) {
               visibleRows.map((row) => (
                 <TableRow
                   key={row.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openReport(row)}
-                  onKeyDown={(event) => {
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault()
-                      openReport(row)
-                    }
-                  }}
-                  className="h-[53px] cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                  aria-disabled
+                  title="Archived report — open the commodity's Report List to view it"
+                  className="h-[53px] cursor-not-allowed opacity-50"
                 >
                   <TableCell className="px-4 py-2">
                     <div className="min-w-0">

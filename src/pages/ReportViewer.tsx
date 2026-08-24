@@ -7,6 +7,7 @@ import { QRCodeSVG } from "qrcode.react"
 import { useTheme } from "next-themes"
 import {
   ArrowDownRight,
+  ArrowDown,
   ArrowLeft,
   ArrowRight,
   ArrowUpRight,
@@ -373,6 +374,68 @@ function splitSummary(summary: string) {
 
 function reportUrl(reportId: string) {
   return `${window.location.origin}/r/${reportId}`
+}
+
+/** Floating "Scroll" hint that appears at the cursor after 2s without
+ *  scrolling, follows the cursor, and fades out within ~1s of movement. */
+function ScrollHint() {
+  const [phase, setPhase] = useState<"hidden" | "visible" | "fading">("hidden")
+  const [pos, setPos] = useState(() => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 }))
+
+  useEffect(() => {
+    let alive = true
+    let fadeTimer: number | undefined
+    let shownAt = 0
+    const phaseRef = { current: "waiting" as "waiting" | "visible" | "done" }
+
+    const dismiss = () => {
+      if (phaseRef.current !== "visible") return
+      phaseRef.current = "done"
+      setPhase("fading")
+      fadeTimer = window.setTimeout(() => {
+        if (alive) setPhase("hidden")
+      }, 1000)
+    }
+
+    const onMove = (e: MouseEvent) => {
+      setPos({ x: e.clientX, y: e.clientY })
+      if (phaseRef.current === "visible" && performance.now() - shownAt > 300) dismiss()
+    }
+    const onScroll = () => dismiss()
+
+    const timer = window.setTimeout(() => {
+      if (phaseRef.current === "waiting") {
+        phaseRef.current = "visible"
+        shownAt = performance.now()
+        setPhase("visible")
+      }
+    }, 2000)
+
+    window.addEventListener("mousemove", onMove)
+    window.addEventListener("scroll", onScroll, true)
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+      if (fadeTimer) window.clearTimeout(fadeTimer)
+      window.removeEventListener("mousemove", onMove)
+      window.removeEventListener("scroll", onScroll, true)
+    }
+  }, [])
+
+  if (phase === "hidden") return null
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: phase === "visible" ? 1 : 0 }}
+      transition={{ duration: phase === "fading" ? 0.6 : 0.25 }}
+      className="pointer-events-none fixed z-[100] flex items-center gap-1.5 rounded-full bg-foreground/90 px-3 py-1.5 text-xs font-medium text-background shadow-lg"
+      style={{ left: pos.x + 16, top: pos.y + 16 }}
+    >
+      Scroll
+      <ArrowDown className="size-3 animate-bounce" />
+    </motion.div>
+  )
 }
 
 function forceDownloadUrl(url: string) {
@@ -1859,5 +1922,10 @@ export function ReportViewer({ publicMode = false }: { publicMode?: boolean }) {
     )
   }
 
-  return <CinematicReport c={data} config={config} publicMode={publicMode} />
+  return (
+    <>
+      <CinematicReport c={data} config={config} publicMode={publicMode} />
+      <ScrollHint />
+    </>
+  )
 }
