@@ -11,11 +11,11 @@
 <p align="center"><strong>Building AI-assisted decision support a buyer can audit.</strong></p>
 
 <p align="center">
-  <a href="DEMO_LINK_TO_BE_ADDED">Live demo</a> ·
+  <a href="https://cales.marcvendrell.cat">Live demo</a> ·
   <a href="https://github.com/josep-audenis/cales-backend">Backend repository</a>
 </p>
 
-<p align="center"><em>Temporary README option. One of three drafts in <code>readme-options/</code>, not the final repository README.</em></p>
+<p align="center"><em>Built during the EHub × Damm hackathon. Deployed demo runs on deterministic fixture data.</em></p>
 
 ---
 
@@ -90,7 +90,7 @@ The interesting piece is the screen-aware agent. It reasons over the controls ac
 
 ## Demo status
 
-**Live demo:** deployment in progress, link to be added.
+**Live demo:** [cales.marcvendrell.cat](https://cales.marcvendrell.cat)
 
 > **Screenshot placeholder**
 >
