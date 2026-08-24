@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 const DEMO_HOWTO_QUESTION = "Explain how to use this demo"
 
 const DEMO_WALKTHROUGH =
-  "Hi, welcome to Calés. This is a demo deployment: the frontend and the backend are both live, but no API keys are configured, so what the agent can do here is limited. For a real report the agent crew produced, open Reports, pick a commodity, then Report List, and click the report marked Ready."
+  "Hi, welcome to Calés. This is a demo deployment: the frontend and the backend are both live, but no API keys are configured, so what the agent can do here is limited. For a real report the agent crew produced, open **Reports**, pick a commodity, then **Report List**, and click the report marked **Ready**."
 
 const SUGGESTIONS = [
   DEMO_HOWTO_QUESTION,
@@ -55,6 +55,27 @@ function useTypewriter(text: string) {
   return { shown, done: shown.length >= text.length }
 }
 
+/** Render `**bold**` spans in a (possibly mid-typewriter) string. An
+ *  unclosed trailing marker renders as plain text until typing completes. */
+function RichText({ text }: { text: string }) {
+  let source = text
+  const markers = source.split("**").length - 1
+  if (markers % 2 === 1) source = source.slice(0, source.lastIndexOf("**"))
+  return (
+    <>
+      {source.split("**").map((part, i) =>
+        i % 2 === 1 ? (
+          <strong key={i} className="font-semibold text-foreground">
+            {part}
+          </strong>
+        ) : (
+          <span key={i}>{part}</span>
+        ),
+      )}
+    </>
+  )
+}
+
 function AssistantMessage({ text, onType }: { text: string; onType?: () => void }) {
   const { shown, done } = useTypewriter(text)
 
@@ -71,7 +92,7 @@ function AssistantMessage({ text, onType }: { text: string; onType?: () => void 
       <div className="min-w-0 flex-1 space-y-1 pt-0.5">
         <p className="text-[11px] font-medium text-cala">Cales</p>
         <div className="text-sm leading-6 text-foreground/90 whitespace-pre-wrap">
-          {shown}
+          <RichText text={shown} />
           {!done ? (
             <span
               aria-hidden
