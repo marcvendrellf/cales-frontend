@@ -2,6 +2,7 @@ import { useEffect, useState } from "react"
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom"
 import { FileText, Info, ListChecks } from "lucide-react"
 import { useCommodity } from "@/api/hooks"
+import { AGENT_CONFIGURED } from "@/api/client"
 import { useBreadcrumbs } from "@/components/shell/breadcrumb"
 import { Card } from "@/components/ui/card"
 import { CommodityDetailSkeleton } from "@/components/common/PageSkeletons"
@@ -122,7 +123,7 @@ function Loaded({ c }: { c: Commodity }) {
           <TabsTrigger value="general">
             <Info /> General information
           </TabsTrigger>
-          <TabsTrigger value="create-report">
+          <TabsTrigger value="create-report" disabled={AGENT_CONFIGURED} title={AGENT_CONFIGURED ? "Live report generation is disabled in the demo" : undefined}>
             <FileText /> Create Report
           </TabsTrigger>
           <TabsTrigger value="report-list">
