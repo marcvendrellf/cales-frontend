@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils"
 const DEMO_HOWTO_QUESTION = "Explain how to use this demo"
 
 const DEMO_WALKTHROUGH =
-  "Welcome to Calés! 👋 This is a demo deployment: both the frontend and the backend are live, but no API keys are configured, so agent interaction is limited. To see a real report created by the agent crew, go to Reports → pick a commodity → Report List, and open the Ready report."
+  "Hi, welcome to Calés. This is a demo deployment: the frontend and the backend are both live, but no API keys are configured, so what the agent can do here is limited. For a real report the agent crew produced, open Reports, pick a commodity, then Report List, and click the report marked Ready."
 
 const SUGGESTIONS = [
   DEMO_HOWTO_QUESTION,
@@ -331,7 +331,7 @@ export function AskBar() {
                 }
                 if (e.key === "Escape") { setOpen(false); setMessages([]) }
               }}
-              placeholder={hasChat ? "Follow up…" : "Ask Cales — e.g. “should we buy aluminium?”"}
+              placeholder={hasChat ? "Follow up…" : "Ask Cales, e.g. 'should we buy aluminium?'"}
               aria-label="Ask Cales"
               className="relative w-full bg-transparent p-0 text-sm text-foreground outline-none placeholder:text-muted-foreground"
             />

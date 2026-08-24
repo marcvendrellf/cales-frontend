@@ -15,7 +15,7 @@
   <a href="https://github.com/josep-audenis/cales-backend">Backend repository</a>
 </p>
 
-<p align="center"><em>Temporary README option — one of three drafts in <code>readme-options/</code>, not the final repository README.</em></p>
+<p align="center"><em>Temporary README option. One of three drafts in <code>readme-options/</code>, not the final repository README.</em></p>
 
 ---
 
@@ -23,7 +23,7 @@
 
 Calés was built for Damm's procurement team during the EHub × Damm hackathon. The brief supplied weekly observations for one commodity from 2006 to 2025, with a hidden 26-week forecast horizon, and asked for a forecasting or logistics solution.
 
-Damm's procurement team have four options for every commodity **buy now, wait, hedge exposure, or monitor?** Our tool aims to provide real insights to help them decide better. All decisions presented are auditable, Damm's team can see the news or data consulted by the agentic tea
+Damm's procurement team have four options for every commodity **buy now, wait, hedge exposure, or monitor?** The tool is built to help them decide with evidence they can audit. All decisions are auditable: Damm's team can see the news and data the agent team consulted.
 
 ## Architecture
 
@@ -90,13 +90,13 @@ The interesting piece is the screen-aware agent. It reasons over the controls ac
 
 ## Demo status
 
-**Live demo:** deployment in progress — link to be added.
+**Live demo:** deployment in progress, link to be added.
 
 > **Screenshot placeholder**
 >
 > Add screenshots of the command centre, material workspace, report builder, and report viewer after deployment.
 
-The deployed showcase follows the happy path on deterministic fixture data. There are no live external APIs, production Cala access, API keys, or real report generation. It demonstrates the complete product flow while keeping the architecture and interactions built for the project intact.
+The deployed demo follows the happy path on deterministic fixture data. There are no live external APIs, production Cala access, API keys, or real report generation. It demonstrates the complete product flow while keeping the architecture and interactions built for the project intact.
 
 ## Recognition
 

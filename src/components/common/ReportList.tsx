@@ -181,7 +181,7 @@ export function ReportList({ c, pendingTitle, generatingSince }: { c: Commodity;
                     <div className="min-w-0">
                       <p className="truncate font-medium text-muted-foreground">{pendingTitle}</p>
                       <p className="mt-0.5 truncate text-xs text-muted-foreground">
-                        Analyzing — this can take 1–2 min · <span className="font-mono tabular-nums">{formatElapsed(elapsed)}</span>
+                        Analyzing. Can take 1 to 2 min · <span className="font-mono tabular-nums">{formatElapsed(elapsed)}</span>
                       </p>
                     </div>
                   </div>
@@ -207,7 +207,7 @@ export function ReportList({ c, pendingTitle, generatingSince }: { c: Commodity;
                   role={row.clickable ? "button" : undefined}
                   tabIndex={row.clickable ? 0 : undefined}
                   aria-disabled={!row.clickable || undefined}
-                  title={row.clickable ? undefined : "Archived report — not available in the demo"}
+                  title={row.clickable ? undefined : "Archived report. Not available in the demo."}
                   onClick={() => {
                     if (row.clickable) openReport(row.id)
                   }}

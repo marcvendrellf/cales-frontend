@@ -27,7 +27,7 @@ export function CommandPalette({ open, onOpenChange }: Props) {
 
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <CommandInput placeholder="Ask Cales — e.g. 'should we buy aluminium?'" />
+      <CommandInput placeholder="Ask Cales, e.g. 'should we buy aluminium?'" />
       <CommandList>
         <CommandEmpty>
           <div className="flex flex-col items-center gap-2 py-4">

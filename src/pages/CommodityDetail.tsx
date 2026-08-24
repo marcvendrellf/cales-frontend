@@ -135,7 +135,7 @@ function Loaded({ c }: { c: Commodity }) {
               </TooltipTrigger>
               {AGENT_CONFIGURED && (
                 <TooltipContent>
-                  Live report generation is disabled in the demo — the LLM API is not connected.
+                  Live report generation is disabled in this demo. No LLM API key is connected.
                 </TooltipContent>
               )}
             </Tooltip>

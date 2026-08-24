@@ -1218,7 +1218,7 @@ function DriversChapter({ c, config }: { c: Commodity; config: ReportConfig }) {
       index="04"
       eyebrow="Drivers"
       title="The forces moving the price."
-      lede="What pushes this market up, and what pulls it back — ranked by weight on the call."
+      lede="What pushes this market up and what pulls it back. Ranked by weight on the call."
     >
       <div className="grid gap-x-12 gap-y-14 lg:grid-cols-2 lg:divide-x lg:divide-border/60">
         {columns.map((col) => (
@@ -1280,7 +1280,7 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
       index="05"
       eyebrow="Horizon"
       title="Tactical now, strategic later."
-      lede="The same market read across two clocks — near-term ordering versus the six-month hedge."
+      lede="The same market read across two clocks: near-term ordering versus the six-month hedge."
     >
       <div className="grid gap-12 lg:grid-cols-2 lg:divide-x lg:divide-border/60">
         {columns.map((col, index) => {
@@ -1311,7 +1311,7 @@ function HorizonComparison({ c, config }: { c: Commodity; config: ReportConfig }
       </div>
       {disagree ? (
         <p className="mt-12 border-l-2 border-hedge pl-4 text-sm leading-6 text-hedge">
-          Short-term and six-month calls disagree — use the one-month view for tactical ordering and the six-month view for hedge exposure.
+          Short-term and six-month calls disagree. Use the one-month view for tactical ordering and the six-month view for hedge exposure.
         </p>
       ) : null}
     </Chapter>

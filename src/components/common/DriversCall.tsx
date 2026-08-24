@@ -52,7 +52,7 @@ export function DriversCall({ commodity: c, className, variant = "default" }: Pr
       <>
         <h2 className="text-sm font-medium">What&apos;s driving the call</h2>
         <p className="mt-0.5 text-xs text-muted-foreground">
-          Net of forces pushing price up vs. down — each tagged to a signal category.
+          Net of forces pushing price up vs. down, each tagged to a signal category.
         </p>
       </>
     )

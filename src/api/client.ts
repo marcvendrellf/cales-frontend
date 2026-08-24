@@ -64,7 +64,7 @@ async function postJson<T>(url: string, body: unknown, timeoutMs?: number): Prom
   } catch (error) {
     if (error instanceof DOMException && error.name === "TimeoutError") {
       throw new Error(
-        `The agent took longer than ${Math.round((timeoutMs ?? 0) / 1000)}s and timed out. The backend may be overloaded — please try again.`,
+        `The agent took longer than ${Math.round((timeoutMs ?? 0) / 1000)}s and timed out. The backend may be overloaded. Please try again.`,
       )
     }
     throw error
