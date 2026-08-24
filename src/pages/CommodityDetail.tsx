@@ -9,6 +9,7 @@ import { CommodityDetailSkeleton } from "@/components/common/PageSkeletons"
 import { DriversCall } from "@/components/common/DriversCall"
 import { RelatedNews } from "@/components/common/RelatedNews"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { ReportBuilder } from "@/components/common/ReportBuilder"
 import { ReportList } from "@/components/common/ReportList"
 import { PriceChart } from "@/components/common/PriceChart"
@@ -123,9 +124,22 @@ function Loaded({ c }: { c: Commodity }) {
           <TabsTrigger value="general">
             <Info /> General information
           </TabsTrigger>
-          <TabsTrigger value="create-report" disabled={AGENT_CONFIGURED} title={AGENT_CONFIGURED ? "Live report generation is disabled in the demo" : undefined}>
-            <FileText /> Create Report
-          </TabsTrigger>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <TabsTrigger value="create-report" disabled={AGENT_CONFIGURED}>
+                    <FileText /> Create Report
+                  </TabsTrigger>
+                </span>
+              </TooltipTrigger>
+              {AGENT_CONFIGURED && (
+                <TooltipContent>
+                  Live report generation is disabled in the demo — the LLM API is not connected.
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
           <TabsTrigger value="report-list">
             <ListChecks /> Report List
           </TabsTrigger>

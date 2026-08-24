@@ -27,6 +27,7 @@ type ReportRow = {
   owner: string
   updatedAt: string
   status: "Ready" | "Archived"
+  clickable: boolean
 }
 
 const PAGE_SIZE = 5
@@ -54,6 +55,7 @@ function buildReportRows(c: Commodity): ReportRow[] {
       owner: "Marc Vendrell",
       updatedAt: demoConfig.generatedAt.slice(0, 10),
       status: "Ready",
+      clickable: true,
     })
   }
 
@@ -70,6 +72,7 @@ function buildReportRows(c: Commodity): ReportRow[] {
       owner: "Marc Vendrell",
       updatedAt: entry.date,
       status: "Archived" as const,
+      clickable: false,
     }))
 
   rows.push(...historyRows)
@@ -85,6 +88,7 @@ function buildReportRows(c: Commodity): ReportRow[] {
       owner: "Marc Vendrell",
       updatedAt: c.recommendation.updatedAt,
       status: "Ready",
+      clickable: false,
     },
   ]
 }
@@ -200,16 +204,25 @@ export function ReportList({ c, pendingTitle, generatingSince }: { c: Commodity;
               visibleRows.map((row) => (
                 <TableRow
                   key={row.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => openReport(row.id)}
+                  role={row.clickable ? "button" : undefined}
+                  tabIndex={row.clickable ? 0 : undefined}
+                  aria-disabled={!row.clickable || undefined}
+                  title={row.clickable ? undefined : "Archived report — not available in the demo"}
+                  onClick={() => {
+                    if (row.clickable) openReport(row.id)
+                  }}
                   onKeyDown={(event) => {
+                    if (!row.clickable) return
                     if (event.key === "Enter" || event.key === " ") {
                       event.preventDefault()
                       openReport(row.id)
                     }
                   }}
-                  className="h-[53px] cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                  className={
+                    row.clickable
+                      ? "h-[53px] cursor-pointer transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:outline-none"
+                      : "h-[53px] cursor-not-allowed opacity-50"
+                  }
                 >
                   <TableCell className="px-4 py-2">
                     <div className="min-w-0">
