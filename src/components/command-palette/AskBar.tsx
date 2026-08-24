@@ -10,13 +10,23 @@ const DEMO_HOWTO_QUESTION = "Explain how to use this demo"
 const DEMO_WALKTHROUGH =
   "Welcome to Calés! 👋 This is a demo deployment: both the frontend and the backend are live, but no API keys are configured, so agent interaction is limited. To see a real report created by the agent crew, go to **Reports** → pick a commodity → **Report List**, and open the report marked **Ready**."
 
+// Questions the demo can answer locally, with short informative replies.
+const PROJECT_ANSWERS: Record<string, string> = {
+  "What is Calés?":
+    "Calés is a procurement decision tool we built for Damm's buying team during the EHub × Damm hackathon (it won the overall prize). Given a commodity like aluminium or barley, it recommends one of four moves: **buy now, wait, hedge, or monitor**, and it shows the reasoning behind every call.",
+  "How does the agent system work?":
+    "There isn't one big AI doing everything. Five specialized agents hand off work in a chain: **fundamentals, market signals, forecasting, the decision, and the explanation**. Each has a narrow job and a fixed output format, which keeps the whole thing auditable.",
+  "Where does the data come from?":
+    "In the live system, the agents pull market prices and news through **Cala.ai**, then run forecasts on top. This demo serves four pre-generated reports from the backend instead, so you can explore real agent output without API keys.",
+  "How do you keep the AI honest?":
+    "Every number comes from **deterministic code**, not the language model. The agents interpret and write, but the math and the forecast corridor are computed, and every claim links back to a named source you can click.",
+  "What tech did you use?":
+    "Frontend: React 19, TypeScript, and Vite, with charts and maps from Recharts and MapLibre. Backend: **FastAPI** with Pydantic schemas, an agent orchestrator, and PDF report generation. Both sides share a typed report contract, which is what makes the explainability chain render end to end.",
+}
+
 const SUGGESTIONS = [
   DEMO_HOWTO_QUESTION,
-  "Should we buy aluminium now?",
-  "What's the 3-month forecast for barley?",
-  "Why is the energy recommendation a hedge?",
-  "Which driver is moving PET prices most?",
-  "Compare the 1-month and 6-month outlook.",
+  ...Object.keys(PROJECT_ANSWERS),
 ]
 
 function formatElapsed(totalSeconds: number) {
@@ -184,8 +194,14 @@ export function AskBar() {
     setOpen(false)
     setMessages((prev) => [...prev, { role: "user", text: question }])
     setValue("")
-    if (question.trim().toLowerCase() === DEMO_HOWTO_QUESTION.toLowerCase()) {
+    const normalized = question.trim().toLowerCase()
+    if (normalized === DEMO_HOWTO_QUESTION.toLowerCase()) {
       setMessages((prev) => [...prev, { role: "assistant", text: DEMO_WALKTHROUGH }])
+      return
+    }
+    const projectAnswer = PROJECT_ANSWERS[question.trim()]
+    if (projectAnswer) {
+      setMessages((prev) => [...prev, { role: "assistant", text: projectAnswer }])
       return
     }
     setSubmitting(true)
