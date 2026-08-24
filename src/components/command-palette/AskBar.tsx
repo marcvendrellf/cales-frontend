@@ -97,6 +97,23 @@ export function AskBar() {
   const inputRef = useRef<HTMLInputElement>(null)
   const chatRef = useRef<HTMLDivElement>(null)
 
+  // Greet the user shortly after they enter the app: explain the demo setup
+  // and point them to the pre-generated reports.
+  useEffect(() => {
+    const id = window.setTimeout(() => {
+      setMessages((prev) =>
+        prev.length === 0
+          ? [{
+              role: "assistant",
+              text:
+                "Welcome to Calés! 👋 This is a demo deployment: both the frontend and the backend are live, but no API keys are configured, so agent interaction is limited. To see a real report created by the agent crew, go to Reports → pick a commodity → Report List, and open the Ready report.",
+            }]
+          : prev,
+      )
+    }, 2000)
+    return () => window.clearTimeout(id)
+  }, [])
+
   useEffect(() => {
     if (!submitting) return
     setElapsed(0)
