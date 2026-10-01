@@ -19,50 +19,68 @@
 </p>
 
 <p align="center">
-  <a href="assets/screenshots/overview.jpg"><img src="assets/screenshots/overview.jpg" alt="Procurement overview with relative price trends, warehouse levels and market news" width="960" /></a>
+  <a href="assets/screenshots/report-cover.jpg"><img src="assets/screenshots/report-cover.jpg" alt="Dark aluminium procurement report cover with the recommendation and three-month horizon" width="960" /></a>
 </p>
 
 Damm supplied weekly price data for one commodity from 2006 to 2025 and a 26-week forecast horizon. We built a tool that combines price history, inventory and external evidence into a procurement recommendation, with workspaces for aluminium, PET, energy and barley.
 
-The deployed app uses demo data and saved reports. The screenshots below come from that deployment, captured in Chrome.
+The deployed app uses demo data and saved reports. Each report has ten slides covering the recommendation, forecast, price paths, drivers, buying horizons, geographic exposure, evidence, monitoring and audit trail. The screenshots below show the deployed report in dark mode, captured in Chrome.
 
 ## Features
 
 <table>
 <tr>
 <td width="50%" valign="middle">
-<h3>1. Inspect a material</h3>
-<p>Review historical prices and recent movement in a workspace for each material. Aluminium, PET, energy and barley each have their own market context and report history.</p>
+<h3>1. Read the procurement call</h3>
+<p>Start with a buy, wait, hedge or monitor recommendation. The report puts the action, time horizon, spot price and risk score together, with an explanation of the call and the next event to watch.</p>
 </td>
 <td width="50%">
-<a href="assets/screenshots/material.jpg"><img src="assets/screenshots/material.jpg" alt="Aluminium workspace with the current demo price and six months of price history" width="100%" /></a>
+<a href="assets/screenshots/report-call.jpg"><img src="assets/screenshots/report-call.jpg" alt="Dark report slide showing the monitor recommendation, spot price and risk score" width="100%" /></a>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="middle">
-<h3>2. Follow the market drivers</h3>
-<p>Compare upward and downward price pressures, then read the linked market signals. Each source note shows its reliability and contribution to the analysis.</p>
+<h3>2. Inspect the forecast range</h3>
+<p>See the expected price change alongside its range over the selected horizon. Open the forecast explanation to inspect the assumptions behind those numbers.</p>
 </td>
 <td width="50%">
-<a href="assets/screenshots/drivers.jpg"><img src="assets/screenshots/drivers.jpg" alt="Aluminium market drivers and related news with source reliability and estimated contributions" width="100%" /></a>
+<a href="assets/screenshots/report-forecast.jpg"><img src="assets/screenshots/report-forecast.jpg" alt="Dark forecast slide with expected change of 5.3 percent and a range from minus 18 to plus 18 percent" width="100%" /></a>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="middle">
-<h3>3. Choose the report context</h3>
-<p>Select the date, spot price, warehouse position, market drivers and news to include. The report builder makes those inputs visible before an analysis starts.</p>
+<h3>3. Compare the price paths</h3>
+<p>Explore the base, worst and relief cases on one chart. Select a path to read its assumptions and source references, then use the explanation controls to inspect how the scenario was built.</p>
 </td>
 <td width="50%">
-<a href="assets/screenshots/report-builder.jpg"><img src="assets/screenshots/report-builder.jpg" alt="Report builder with market context controls and a selected Cala energy signal" width="100%" /></a>
+<a href="assets/screenshots/report-price-paths.jpg"><img src="assets/screenshots/report-price-paths.jpg" alt="Dark scenario slide with historical prices and base, worst and relief price paths" width="100%" /></a>
 </td>
 </tr>
 <tr>
 <td width="50%" valign="middle">
-<h3>4. Review previous recommendations</h3>
-<p>Search saved reports and compare their actions, horizons, dates and source counts. The report viewer connects each recommendation to forecast scenarios, evidence and conditions to monitor.</p>
+<h3>4. Compare buying horizons</h3>
+<p>Read the one-month and six-month views side by side. Each view has its own action, trend and top driver, with a note when tactical ordering and longer-term hedge exposure point in different directions.</p>
 </td>
 <td width="50%">
-<a href="assets/screenshots/reports.jpg"><img src="assets/screenshots/reports.jpg" alt="Saved aluminium reports with monitor and wait decisions, time horizons and source counts" width="100%" /></a>
+<a href="assets/screenshots/report-horizon.jpg"><img src="assets/screenshots/report-horizon.jpg" alt="Dark horizon slide comparing a one-month wait decision with a six-month monitor decision" width="100%" /></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+<h3>5. Follow the evidence</h3>
+<p>Read the signals ranked by their estimated impact on the recommendation. Each item shows its source, date, reliability and direction, with links to the source and an explanation of why it matters.</p>
+</td>
+<td width="50%">
+<a href="assets/screenshots/report-evidence.jpg"><img src="assets/screenshots/report-evidence.jpg" alt="Dark evidence slide with ranked market signals, source reliability and impact scores" width="100%" /></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+<h3>6. Choose the report context</h3>
+<p>Select the date, spot price, warehouse position, market drivers and news to include. The material workspace also provides historical prices and saved reports for aluminium, PET, energy and barley.</p>
+</td>
+<td width="50%">
+<a href="assets/screenshots/report-builder.jpg"><img src="assets/screenshots/report-builder.jpg" alt="Dark report builder with market context controls and a selected Cala energy signal" width="100%" /></a>
 </td>
 </tr>
 </table>
@@ -136,7 +154,7 @@ npm run lint
 npm run build
 ```
 
-Demo prices, recommendations and confidence scores come from prototype data. Report pages require WebGL for their map and currently do not have a fallback when the browser cannot create a WebGL context.
+Demo prices, recommendations and confidence scores come from prototype data. The interactive map requires WebGL. If the map cannot load, the report keeps its text, charts and location details available.
 
 ## Team
 
