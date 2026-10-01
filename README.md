@@ -19,12 +19,12 @@
 </p>
 
 <p align="center">
-  <a href="assets/screenshots/report-cover.jpg"><img src="assets/screenshots/report-cover.jpg" alt="Dark aluminium procurement report cover with the recommendation and three-month horizon" width="960" /></a>
+  <a href="assets/screenshots/overview.jpg"><img src="assets/screenshots/overview.jpg" alt="Dark opening dashboard with material price trends, warehouse levels and market news" width="960" /></a>
 </p>
 
 Damm supplied weekly price data for one commodity from 2006 to 2025 and a 26-week forecast horizon. We built a tool that combines price history, inventory and external evidence into a procurement recommendation, with workspaces for aluminium, PET, energy and barley.
 
-The deployed app uses demo data and saved reports. Each report has ten slides covering the recommendation, forecast, price paths, drivers, buying horizons, geographic exposure, evidence, monitoring and audit trail. The screenshots below show the deployed report in dark mode, captured in Chrome.
+The deployed app uses demo data and saved reports. Each report has ten slides covering the recommendation, forecast, price paths, drivers, buying horizons, geographic exposure, evidence, monitoring and audit trail. The screenshots show the opening dashboard and report slides in dark mode, captured in Chrome.
 
 ## Features
 
@@ -67,7 +67,16 @@ The deployed app uses demo data and saved reports. Each report has ten slides co
 </tr>
 <tr>
 <td width="50%" valign="middle">
-<h3>5. Follow the evidence</h3>
+<h3>5. Map the geographic exposure</h3>
+<p>Locate the regions and logistics points referenced by the report. Select a location to focus the map and read the supply, energy or shipping risk behind it.</p>
+</td>
+<td width="50%">
+<a href="assets/screenshots/report-map.jpg"><img src="assets/screenshots/report-map.jpg" alt="Dark geographic exposure slide focused on the Hormuz Strait and its supply route risk" width="100%" /></a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="middle">
+<h3>6. Follow the evidence</h3>
 <p>Read the signals ranked by their estimated impact on the recommendation. Each item shows its source, date, reliability and direction, with links to the source and an explanation of why it matters.</p>
 </td>
 <td width="50%">
@@ -76,7 +85,7 @@ The deployed app uses demo data and saved reports. Each report has ten slides co
 </tr>
 <tr>
 <td width="50%" valign="middle">
-<h3>6. Choose the report context</h3>
+<h3>7. Choose the report context</h3>
 <p>Select the date, spot price, warehouse position, market drivers and news to include. The material workspace also provides historical prices and saved reports for aluminium, PET, energy and barley.</p>
 </td>
 <td width="50%">
@@ -154,7 +163,7 @@ npm run lint
 npm run build
 ```
 
-Demo prices, recommendations and confidence scores come from prototype data. The interactive map requires WebGL. If the map cannot load, the report keeps its text, charts and location details available.
+Demo prices, recommendations and confidence scores come from prototype data. The interactive map requires WebGL. When WebGL is unavailable, the report uses a bundled map from [Natural Earth](https://www.naturalearthdata.com/) and keeps location selection, text and charts available. The fallback has country boundaries and location markers, with no free panning or zoom controls.
 
 ## Team
 
