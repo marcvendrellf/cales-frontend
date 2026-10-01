@@ -1,4 +1,4 @@
-import { Component, useEffect, useRef, type ReactNode } from "react"
+import { Component, lazy, Suspense, useEffect, useRef, type ReactNode } from "react"
 import maplibregl, { LngLatBounds, type Map as MapLibreMap, type Marker } from "maplibre-gl"
 import { useTheme } from "next-themes"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -17,7 +17,7 @@ export type MapPoint = {
   tone?: "primary" | "positive" | "warning" | "muted"
 }
 
-type MapProps = {
+export type MapProps = {
   center: [number, number]
   zoom?: number
   points?: MapPoint[]
@@ -288,8 +288,10 @@ function MapInner({
   )
 }
 
+const MapFallback = lazy(() => import("./map-fallback"))
+
 class MapBoundary extends Component<
-  { children: ReactNode; className?: string },
+  { children: ReactNode; fallback: ReactNode },
   { failed: boolean }
 > {
   state = { failed: false }
@@ -300,19 +302,7 @@ class MapBoundary extends Component<
 
   render() {
     if (this.state.failed) {
-      return (
-        <div
-          role="status"
-          className={cn(
-            "flex h-full min-h-[320px] w-full items-center justify-center bg-background p-8 text-center",
-            this.props.className,
-          )}
-        >
-          <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
-            The interactive map could not load. Location details are still available in the report.
-          </p>
-        </div>
-      )
+      return this.props.fallback
     }
     return this.props.children
   }
@@ -323,7 +313,11 @@ export function Map(props: MapProps) {
   const styleUrl = resolvedTheme === "dark" ? CARTO_DARK_STYLE : CARTO_LIGHT_STYLE
   // Remount on basemap change so markers, heatmap and camera re-initialize cleanly.
   return (
-    <MapBoundary key={styleUrl} className={props.className}>
+    <MapBoundary key={styleUrl} fallback={
+      <Suspense fallback={<div className={cn("h-full min-h-[320px] bg-background", props.className)} />}>
+        <MapFallback {...props} />
+      </Suspense>
+    }>
       <MapInner styleUrl={styleUrl} {...props} />
     </MapBoundary>
   )
