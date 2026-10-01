@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react"
+import { Component, useEffect, useRef, type ReactNode } from "react"
 import maplibregl, { LngLatBounds, type Map as MapLibreMap, type Marker } from "maplibre-gl"
 import { useTheme } from "next-themes"
 import "maplibre-gl/dist/maplibre-gl.css"
@@ -288,9 +288,43 @@ function MapInner({
   )
 }
 
+class MapBoundary extends Component<
+  { children: ReactNode; className?: string },
+  { failed: boolean }
+> {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <div
+          role="status"
+          className={cn(
+            "flex h-full min-h-[320px] w-full items-center justify-center bg-background p-8 text-center",
+            this.props.className,
+          )}
+        >
+          <p className="max-w-xs text-sm leading-relaxed text-muted-foreground">
+            The interactive map could not load. Location details are still available in the report.
+          </p>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
 export function Map(props: MapProps) {
   const { resolvedTheme } = useTheme()
   const styleUrl = resolvedTheme === "dark" ? CARTO_DARK_STYLE : CARTO_LIGHT_STYLE
   // Remount on basemap change so markers, heatmap and camera re-initialize cleanly.
-  return <MapInner key={styleUrl} styleUrl={styleUrl} {...props} />
+  return (
+    <MapBoundary key={styleUrl} className={props.className}>
+      <MapInner styleUrl={styleUrl} {...props} />
+    </MapBoundary>
+  )
 }
