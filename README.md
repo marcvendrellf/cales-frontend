@@ -1,105 +1,69 @@
-<h1 align="center">Calés · An Explainable Agentic Procurement System</h1>
+# Procurement decisions for raw materials
 
-<p align="center">
-  <img alt="React 19" src="https://img.shields.io/badge/React-19-149ECA?logo=react&logoColor=white" />
-  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white" />
-  <img alt="Vite" src="https://img.shields.io/badge/Vite-8-646CFF?logo=vite&logoColor=white" />
-  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-backend-009688?logo=fastapi&logoColor=white" />
-  <img alt="MapLibre" src="https://img.shields.io/badge/MapLibre-GL-396CB2?logo=maplibre&logoColor=white" />
-</p>
+We built a five-agent procurement tool to help buyers decide whether to buy, wait, hedge or monitor raw materials. We called it Calés, and it won the overall prize and Best Use of Cala at the Damm x Engineering Hub Hackathon.
 
-<p align="center"><strong>Building AI-assisted decision support a buyer can audit.</strong></p>
+The application brings price history, inventory levels and external market evidence into one workspace. Buyers can inspect the reasons behind a recommendation and explore how a different scenario would change it.
 
-<p align="center">
-  <a href="DEMO_LINK_TO_BE_ADDED">Live demo</a> ·
-  <a href="https://github.com/josep-audenis/cales-backend">Backend repository</a>
-</p>
+[Try the demo](https://cales.marcvendrell.cat) · [Backend repository](https://github.com/josep-audenis/cales-backend)
 
-<p align="center"><em>Temporary README option — one of three drafts in <code>readme-options/</code>, not the final repository README.</em></p>
+## What we built
 
----
+Damm supplied weekly price data for one commodity from 2006 to 2025 and a 26-week forecast horizon. We used that brief to build a tool for procurement decisions, with workspaces for aluminium, PET, energy and barley.
 
-## The problem
+The dashboard shows price trends, warehouse levels and market news. Each material has its own workspace with historical prices, market drivers and a recommendation. A report builder lets the buyer choose the context and evidence to include in an analysis.
 
-Calés was built for Damm's procurement team during the EHub × Damm hackathon. The brief supplied weekly observations for one commodity from 2006 to 2025, with a hidden 26-week forecast horizon, and asked for a forecasting or logistics solution.
+Reports show an action, a time horizon, confidence, forecast scenarios and the evidence behind the result. What-if controls let buyers adjust market drivers and see how the recommendation changes. The report builder also has an assistant that reads the visible controls and can propose changes to the selected inputs.
 
-Damm's procurement team have four options for every commodity **buy now, wait, hedge exposure, or monitor?** Our tool aims to provide real insights to help them decide better. All decisions presented are auditable, Damm's team can see the news or data consulted by the agentic tea
+## How the workflow works
 
-## Architecture
+The backend separates the analysis into five roles.
 
-```text
-                  ┌──────────────────────┐
-                  │  React / Vite cockpit │
-                  │  charts · reports    │
-                  │  scenarios · agents  │
-                  └──────────┬───────────┘
-                             │ API contract
-                  ┌──────────▼───────────┐
-                  │   FastAPI backend    │
-                  │ data · forecasts     │
-                  │ decisions · reports  │
-                  └──────────┬───────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-   Historical data      Cala signals       Five-agent crew
-```
+| Role | Responsibility |
+| --- | --- |
+| Fundamentals | Calculates price momentum and seasonal signals from historical data. |
+| Cala signals | Collects evidence about producers, supply disruptions and weather through Cala. |
+| Forecast | Builds a forecast range and alternative price scenarios. |
+| Decision | Produces a buy, wait, hedge or monitor recommendation with risk and confidence scores. |
+| Explanation | Writes the explanation and identifies evidence and conditions to monitor. |
 
-The frontend is the interface for the user. The backend owns the data contract, the deterministic calculation layer, the report schema, executive PDF output, and agent orchestration. It can be found here: [github.com/josep-audenis/cales-backend](https://github.com/josep-audenis/cales-backend).
+The five-agent design uses structured handoffs between stages. In the current backend, deterministic tools collect signals, calculate forecasts and score decisions. The language model writes the explanation from those results.
 
-The boundary between them is a typed report contract, so the shape of a report is enforced on both sides instead of being reconstructed in the UI. This consistency helped us avoid problems in the demo!
+The React frontend and FastAPI backend share a typed report structure. Each report connects sources to evidence, market drivers, scenarios and a recommendation, so buyers can follow the reasoning in the interface. API requests have timeouts, and the interface shows loading and error states.
 
-## Five-agent orchestration
+## Demo
 
-A single general-purpose agent asked to produce a whole recommendation will hallucinate the parts it cannot compute. Splitting the pipeline into five roles with narrow contracts removes most of that surface:
-
-| Stage | Agent | Output |
-| --- | --- | --- |
-| 1 | **Fundamentals Agent** | Price features, momentum, and seasonality signals. |
-| 2 | **Cala Signal Agent** | External evidence about producers, disruptions, and weather. |
-| 3 | **Forecast Agent** | Base, upside, and downside forecast corridor. |
-| 4 | **Decision Agent** | Buy, wait, hedge, or monitor action with scores and confidence. |
-| 5 | **Explanation Agent** | Evidence-linked narrative and monitoring conditions. |
-
-The orchestrator owns sequencing and the JSON handoffs between stages. Signal gathering is independent and runs in parallel; forecasting, decision, and explanation are strictly sequential because each consumes the previous stage's output. Every numeric result comes from a deterministic tool, so the language model's job is interpretation and phrasing, not arithmetic.
-
-## Explainability by design
-
-Explainability here is a schema property, not a post-processing step. Reports preserve the full chain:
-
-```text
-source → evidence → signal → driver → scenario → recommendation
-```
-
-Because that chain is in the contract, the interface can render every link of it: forecast corridor, risk and opportunity scores, driver direction, source reliability, evidence references, historical context, affected locations, and the conditions that would invalidate the recommendation. A what-if panel adjusts driver intensity and recomputes the action live, which turns the report from a static artefact into something a buyer can stress-test.
-
-## Frontend
-
-The React application is organised around the decision flow: a command centre for relative trends, warehouse fill, and market news; material workspaces holding price history and driver analysis; a report builder with selectable context and evidence; and a chapter-based viewer with maps and evidence references.
-
-The interesting piece is the screen-aware agent. It reasons over the controls actually rendered on the report-builder page and can explain or update them, so a natural-language request resolves against real interface state instead of returning instructions the user then has to follow by hand.
+The [deployed demo](https://cales.marcvendrell.cat) uses fixture data and saved reports. It lets you explore the dashboard, material workspaces, report viewer and scenario controls. Live report generation and live Cala queries are disabled in this version.
 
 ## Technology
 
-- **Frontend:** React 19, TypeScript, Vite, React Router, Tailwind CSS, Radix UI
-- **Data:** TanStack Query, typed API client, local fixtures, structured report contracts
-- **Charts and maps:** Recharts, lightweight-charts, MapLibre GL
-- **Backend:** FastAPI, Pydantic schemas, deterministic forecasting and decision services
-- **Agent system:** five-agent orchestration, Cala tools, guardrails, structured handoffs
-- **Output:** website report JSON, public report routes, and executive PDF reports
+The frontend uses React 19, TypeScript, Vite, React Router, Tailwind CSS and Radix UI. TanStack Query handles data fetching, Recharts and lightweight-charts draw the charts, and MapLibre GL renders the maps.
 
-## Demo status
+The backend uses Python, FastAPI, Pydantic and the OpenAI Agents SDK. It handles market signals, forecasting, decision scoring, structured reports and executive PDF output. This repository contains the frontend.
 
-**Live demo:** deployment in progress — link to be added.
+## Run locally
 
-> **Screenshot placeholder**
->
-> Add screenshots of the command centre, material workspace, report builder, and report viewer after deployment.
+```bash
+npm install
+npm run dev
+```
 
-The deployed showcase follows the happy path on deterministic fixture data. There are no live external APIs, production Cala access, API keys, or real report generation. It demonstrates the complete product flow while keeping the architecture and interactions built for the project intact.
+Without API configuration, the application uses the mock data in `src/data/mock.ts`. To connect a local backend, copy `.env.example` to `.env.local` and set these values.
 
-## Recognition
+```dotenv
+VITE_API_URL=http://localhost:8000
+VITE_AGENT_API_URL=http://localhost:8000
+VITE_UI_AGENT_API_URL=http://localhost:8000
+```
 
-Calés won the **overall EHub × Damm hackathon prize** and the **Best Use of Cala award**.
+`VITE_UI_AGENT_API_URL` is optional. If you omit it, the interface assistant uses `VITE_AGENT_API_URL` and calls `/agent/ui`.
 
-Built by **Josep Audenis, Marc Vendrell, and Guillem Cadevall**, at an event supported by Damm, Deleito, Opereit, Cala, The AI Collective, and the Engineering Hub team.
+Run the lint and production build checks with these commands.
+
+```bash
+npm run lint
+npm run build
+```
+
+## Team
+
+Built by Josep Audenis, Marc Vendrell and Guillem Cadevall.
